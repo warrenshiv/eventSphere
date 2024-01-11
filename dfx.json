@@ -1,0 +1,30 @@
+{
+  "canisters": {
+    "event_sphere_backend": {
+      "candid": "src/event_sphere_backend/event_sphere_backend.did",
+      "package": "event_sphere_backend",
+      "type": "rust"
+    },
+    "event_sphere_frontend": {
+      "dependencies": [
+        "event_sphere_backend"
+      ],
+      "frontend": {
+        "entrypoint": "src/event_sphere_frontend/src/index.html"
+      },
+      "source": [
+        "src/event_sphere_frontend/assets",
+        "dist/event_sphere_frontend/"
+      ],
+      "type": "assets"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}
