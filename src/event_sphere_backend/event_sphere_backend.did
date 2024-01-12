@@ -1,3 +1,47 @@
+// Error enumeration
+type Error = variant { NotFound : record { msg : text } };
+
+// Event structure
+type Event = record {
+  id : nat64;
+  name : text;
+  details : text;
+  location : text;
+  timestamp : nat64;
+  attendees : vec text;
+};
+
+// EventPayload structure
+type EventPayload = record {
+  name : text;
+  details : text;
+  location : text;
+};
+
+// Ticket structure
+type Ticket = record {
+  id : nat64;
+  event_id : nat64;
+  name : text;
+  details : text;
+  price : nat64;
+  quantity : nat64;
+};
+
+// Result variant for Event
+type ResultEvent = variant { Ok : Event; Err : Error };
+
 service : {
-    "greet": (text) -> (text) query;
-}
+  // Update functions for Event
+  add_event : (EventPayload) -> (opt Event);
+  update_event : (nat64, EventPayload) -> (ResultEvent);
+  delete_event : (nat64) -> (ResultEvent);
+
+  // Query functions for Event
+  get_event : (nat64) -> (ResultEvent) query;
+  get_event_by_name : (text) -> (opt Event) query;
+  get_events : () -> (vec Event) query;
+
+  // Query functions for Tickets (if needed)
+  get_tickets : (nat64) -> (vec Ticket) query;
+};
