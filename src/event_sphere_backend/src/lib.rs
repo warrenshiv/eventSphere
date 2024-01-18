@@ -16,7 +16,14 @@ struct Event {
     details: String,
     location: String,
     timestamp: u64,
-    attendees: Vec<String>,
+    attendees: Vec<u64>,
+    // Add more fields as needed
+}
+
+#[derive(candid::CandidType, Clone, Serialize, Deserialize, Default)]
+struct Attendee {
+    id: u64,
+    name: String,
     // Add more fields as needed
 }
 
@@ -41,6 +48,21 @@ impl Storable for Event {
 }
 
 impl BoundedStorable for Event {
+    const MAX_SIZE: u32 = 1024;
+    const IS_FIXED_SIZE: bool = false;
+}
+
+impl Storable for Attendee {
+    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+        Cow::Owned(Encode!(self).unwrap())
+    }
+
+    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+        Decode!(bytes.as_ref(), Self).unwrap()
+    }
+}
+
+impl BoundedStorable for Attendee {
     const MAX_SIZE: u32 = 1024;
     const IS_FIXED_SIZE: bool = false;
 }
@@ -73,6 +95,11 @@ thread_local! {
     static EVENTS_STORAGE: RefCell<StableBTreeMap<u64, Event, Memory>> =
         RefCell::new(StableBTreeMap::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(1)))
+    ));
+
+    static ATTENDEES_STORAGE: RefCell<StableBTreeMap<u64, Attendee, Memory>> =
+    RefCell::new(StableBTreeMap::init(
+        MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(3)))
     ));
 
     static TICKETS_STORAGE: RefCell<StableBTreeMap<u64, Ticket, Memory>> =
@@ -174,6 +201,47 @@ fn get_events() -> Vec<Event> {
     })
 }
 
+#[ic_cdk::update]
+fn add_attendees(event_id: u64, attendees: Vec<u64>) -> Result<(), Error> {
+    match EVENTS_STORAGE.with(|service| {
+        let mut events_storage = service.borrow_mut();
+        if let Some(event) = events_storage.get(&event_id) {
+            // Check if any attendee IDs are already present in the event
+            let existing_attendees: Vec<&u64> = event.attendees.iter().filter(|&id| attendees.contains(id)).collect();
+            if existing_attendees.is_empty() {
+                // Create a new event with updated attendees and insert it back into the map
+                let updated_event = Event {
+                    attendees: event.attendees.iter().cloned().chain(attendees.iter().cloned()).collect(),
+                    ..event.clone()
+                };
+                events_storage.insert(event_id, updated_event);
+                Ok(()) // Corrected return type
+            } else {
+                // Some attendees are already registered for the event
+                Err(Error::AlreadyExists {
+                    msg: format!("attendees with IDs {:?} already registered for the event", existing_attendees),
+                })
+            }
+        } else {
+            Err(Error::NotFound {
+                msg: format!("event with id={} not found", event_id),
+            })
+        }
+    }) {
+        Ok(()) => Ok(()), // Corrected return type
+        Err(err) => Err(err),
+    }
+}
+
+#[ic_cdk::query]
+fn get_attendees(event_id: u64) -> Result<Vec<u64>, Error> {
+    match _get_event(&event_id) {
+        Some(event) => Ok(event.attendees.clone()),
+        None => Err(Error::NotFound {
+            msg: format!("event with id={} not found", event_id),
+        }),
+    }
+}
 
 #[ic_cdk::query]
 fn get_tickets(event_id: u64) -> Vec<Ticket> {
@@ -235,6 +303,8 @@ fn do_insert_ticket(ticket: &Ticket) {
 #[derive(candid::CandidType, Deserialize, Serialize)]
 enum Error {
     NotFound { msg: String },
+    AlreadyExists { msg: String }, 
+    CustomError(String),
 }
 
 // a helper method to get an event by id.

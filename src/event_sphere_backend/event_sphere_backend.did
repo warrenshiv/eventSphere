@@ -42,6 +42,6 @@ service : {
   get_event_by_name : (text) -> (opt Event) query;
   get_events : () -> (vec Event) query;
 
-  // Query functions for Tickets (if needed)
+  // Query functions for Tickets
   get_tickets : (nat64) -> (vec Ticket) query;
 };
