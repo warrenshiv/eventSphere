@@ -1,47 +1,44 @@
-// Error enumeration
-type Error = variant { NotFound : record { msg : text } };
-
-// Event structure
+type Error = variant {
+  NotFound : record { msg : text };
+  AlreadyExists : record { msg : text };
+  CustomError : text;
+};
 type Event = record {
   id : nat64;
   name : text;
-  details : text;
-  location : text;
   timestamp : nat64;
-  attendees : vec text;
-};
-
-// EventPayload structure
-type EventPayload = record {
-  name : text;
+  attendees : vec nat64;
   details : text;
   location : text;
 };
-
-// Ticket structure
+type EventPayload = record { name : text; details : text; location : text };
+type Result = variant { Ok; Err : Error };
+type Result_1 = variant { Ok : Event; Err : Error };
+type Result_2 = variant { Ok : Ticket; Err : Error };
+type Result_3 = variant { Ok : vec nat64; Err : Error };
 type Ticket = record {
-  id : nat64;
+  attendee : text;
+  ticket_price : nat64;
+  ticket_id : nat64;
+  ticket_type : text;
   event_id : nat64;
-  name : text;
-  details : text;
-  price : nat64;
-  quantity : nat64;
 };
-
-// Result variant for Event
-type ResultEvent = variant { Ok : Event; Err : Error };
-
+type TicketPayload = record {
+  attendee : text;
+  ticket_price : nat64;
+  ticket_type : text;
+  event_id : nat64;
+};
 service : {
-  // Update functions for Event
+  add_attendees : (nat64, vec nat64) -> (Result);
   add_event : (EventPayload) -> (opt Event);
-  update_event : (nat64, EventPayload) -> (ResultEvent);
-  delete_event : (nat64) -> (ResultEvent);
-
-  // Query functions for Event
-  get_event : (nat64) -> (ResultEvent) query;
+  add_ticket : (TicketPayload) -> (opt Ticket);
+  delete_event : (nat64) -> (Result_1);
+  delete_ticket : (nat64) -> (Result_2);
+  get_attendees : (nat64) -> (Result_3) query;
+  get_event : (nat64) -> (Result_1) query;
   get_event_by_name : (text) -> (opt Event) query;
   get_events : () -> (vec Event) query;
-
-  // Query functions for Tickets
   get_tickets : (nat64) -> (vec Ticket) query;
-};
+  update_event : (nat64, EventPayload) -> (Result_1);
+}
