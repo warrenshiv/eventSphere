@@ -1,3 +1,5 @@
+type Attendee = record { name : text };
+type AttendeePayload = record { name : text };
 type Error = variant {
   NotFound : record { msg : text };
   AlreadyExists : record { msg : text };
@@ -9,7 +11,7 @@ type Event = record {
   end_date : text;
   start_date : text;
   timestamp : nat64;
-  attendees : vec nat64;
+  attendees : vec Attendee;
   details : text;
   location : text;
 };
@@ -23,7 +25,7 @@ type EventPayload = record {
 type Result = variant { Ok; Err : Error };
 type Result_1 = variant { Ok : Event; Err : Error };
 type Result_2 = variant { Ok : Ticket; Err : Error };
-type Result_3 = variant { Ok : vec nat64; Err : Error };
+type Result_3 = variant { Ok : vec Attendee; Err : Error };
 type Ticket = record {
   attendee : text;
   ticket_price : nat64;
@@ -38,7 +40,7 @@ type TicketPayload = record {
   event_id : nat64;
 };
 service : {
-  add_attendees : (nat64, vec nat64) -> (Result);
+  add_attendees : (nat64, AttendeePayload) -> (Result);
   add_event : (EventPayload) -> (opt Event);
   add_ticket : (TicketPayload) -> (opt Ticket);
   delete_event : (nat64) -> (Result_1);

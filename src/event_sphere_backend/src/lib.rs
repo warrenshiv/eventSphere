@@ -18,12 +18,11 @@ struct Event {
     start_date: String,
     end_date: String,
     timestamp: u64,
-    attendees: Vec<u64>,
+    attendees: Vec<Attendee>,
 }
 
 #[derive(candid::CandidType, Clone, Serialize, Deserialize, Default)]
 struct Attendee {
-    id: u64,
     name: String,
 }
 
@@ -117,6 +116,11 @@ struct EventPayload {
 }
 
 #[derive(candid::CandidType, Serialize, Deserialize, Default)]
+struct AttendeePayload {
+    name: String,
+}
+
+#[derive(candid::CandidType, Serialize, Deserialize, Default)]
 struct TicketPayload {
     event_id: u64,
     attendee: String,
@@ -124,6 +128,7 @@ struct TicketPayload {
     ticket_price: u64,
 }
 
+// Event Queries
 #[ic_cdk::update]
 fn add_event(event: EventPayload) -> Option<Event> {
     let id = ID_COUNTER
@@ -157,9 +162,12 @@ fn update_event(event_id: u64, payload: EventPayload) -> Result<Event, Error> {
             Ok(event)
         }
         None => Err(Error::NotFound {
-            msg: format!("couldn't update an event with id={}. event not found", event_id),
+            msg: format!(
+                "couldn't update an event with id={}. event not found",
+                event_id
+            ),
         }),
-    }    
+    }
 }
 
 #[ic_cdk::update]
@@ -167,7 +175,10 @@ fn delete_event(event_id: u64) -> Result<Event, Error> {
     match EVENTS_STORAGE.with(|service| service.borrow_mut().remove(&event_id)) {
         Some(event) => Ok(event),
         None => Err(Error::NotFound {
-            msg: format!("couldn't delete an event with id={}. event not found.", event_id),
+            msg: format!(
+                "couldn't delete an event with id={}. event not found.",
+                event_id
+            ),
         }),
     }
 }
@@ -200,7 +211,10 @@ fn get_event_by_name(name: String) -> Option<Event> {
 fn get_events() -> Vec<Event> {
     EVENTS_STORAGE.with(|service| {
         let borrowed_service = service.borrow();
-        borrowed_service.iter().map(|(_, event)| event.clone()).collect()
+        borrowed_service
+            .iter()
+            .map(|(_, event)| event.clone())
+            .collect()
     })
 }
 
@@ -211,9 +225,7 @@ fn get_upcoming_events() -> Vec<Event> {
         let borrowed_service = service.borrow();
         borrowed_service
             .iter()
-            .filter(|(_, event)| {
-                event.timestamp > current_time
-            })
+            .filter(|(_, event)| event.timestamp > current_time)
             .map(|(_, event)| event.clone())
             .collect()
     })
@@ -226,54 +238,52 @@ fn get_past_events() -> Vec<Event> {
         let borrowed_service = service.borrow();
         borrowed_service
             .iter()
-            .filter(|(_, event)| {
-                event.timestamp <= current_time
-            })
+            .filter(|(_, event)| event.timestamp <= current_time)
             .map(|(_, event)| event.clone())
             .collect()
     })
 }
 
-
+// Attendee Queries
 #[ic_cdk::update]
-fn add_attendees(event_id: u64, attendees: Vec<u64>) -> Result<(), Error> {
+fn add_attendees(event_id: u64, attendee_payload: AttendeePayload) -> Result<(), Error> {
     match EVENTS_STORAGE.with(|service| {
         let mut events_storage = service.borrow_mut();
         if let Some(event) = events_storage.get(&event_id) {
-            // Check if any attendee IDs are already present in the event
-            let existing_attendees: Vec<&u64> = event.attendees.iter().filter(|&id| attendees.contains(id)).collect();
-            if existing_attendees.is_empty() {
-                // Create a new event with updated attendees and insert it back into the map
-                let updated_event = Event {
-                    attendees: event.attendees.iter().cloned().chain(attendees.iter().cloned()).collect(),
-                    ..event.clone()
-                };
-                events_storage.insert(event_id, updated_event);
-                Ok(()) // Corrected return type
-            } else {
-                // Some attendees are already registered for the event
-                Err(Error::AlreadyExists {
-                    msg: format!("attendees with IDs {:?} already registered for the event", existing_attendees),
-                })
-            }
+            // Use get to get a reference to the event
+            let attendee = Attendee {
+                // Assuming you have an id field in the AttendeePayload
+                name: attendee_payload.name.clone(), // Cloning the name field
+            };
+            let mut cloned_event = event.clone(); // Cloning the event to modify it
+            cloned_event.attendees.push(attendee); // Add the new attendee to the cloned event's attendees vector
+            events_storage.insert(event_id, cloned_event); // Replace the old event with the modified one
+            Ok(()) // Return Ok if successful
         } else {
             Err(Error::NotFound {
                 msg: format!("event with id={} not found", event_id),
             })
         }
     }) {
-        Ok(()) => Ok(()), // Corrected return type
+        Ok(()) => Ok(()),
         Err(err) => Err(err),
     }
 }
 
 #[ic_cdk::query]
-fn get_attendees(event_id: u64) -> Result<Vec<u64>, Error> {
-    match _get_event(&event_id) {
-        Some(event) => Ok(event.attendees.clone()),
-        None => Err(Error::NotFound {
-            msg: format!("event with id={} not found", event_id),
-        }),
+fn get_attendees(event_id: u64) -> Result<Vec<Attendee>, Error> {
+    match EVENTS_STORAGE.with(|service| {
+        let events_storage = service.borrow();
+        if let Some(event) = events_storage.get(&event_id) {
+            Ok(event.attendees.clone()) // Return a clone of the attendees vector
+        } else {
+            Err(Error::NotFound {
+                msg: format!("event with id={} not found", event_id),
+            })
+        }
+    }) {
+        Ok(attendees) => Ok(attendees),
+        Err(err) => Err(err),
     }
 }
 
@@ -319,7 +329,10 @@ fn delete_ticket(ticket_id: u64) -> Result<Ticket, Error> {
     match TICKETS_STORAGE.with(|service| service.borrow_mut().remove(&ticket_id)) {
         Some(ticket) => Ok(ticket),
         None => Err(Error::NotFound {
-            msg: format!("couldn't delete a ticket with id={}. ticket not found.", ticket_id),
+            msg: format!(
+                "couldn't delete a ticket with id={}. ticket not found.",
+                ticket_id
+            ),
         }),
     }
 }
@@ -331,13 +344,17 @@ fn do_insert_event(event: &Event) {
 
 // helper method to perform insert for tickets.
 fn do_insert_ticket(ticket: &Ticket) {
-    TICKETS_STORAGE.with(|service| service.borrow_mut().insert(ticket.ticket_id, ticket.clone()));
+    TICKETS_STORAGE.with(|service| {
+        service
+            .borrow_mut()
+            .insert(ticket.ticket_id, ticket.clone())
+    });
 }
 
 #[derive(candid::CandidType, Deserialize, Serialize)]
 enum Error {
     NotFound { msg: String },
-    AlreadyExists { msg: String }, 
+    AlreadyExists { msg: String },
     CustomError(String),
 }
 
