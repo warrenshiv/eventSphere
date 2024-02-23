@@ -15,16 +15,16 @@ struct Event {
     name: String,
     details: String,
     location: String,
+    start_date: String,
+    end_date: String,
     timestamp: u64,
     attendees: Vec<u64>,
-    // Add more fields as needed
 }
 
 #[derive(candid::CandidType, Clone, Serialize, Deserialize, Default)]
 struct Attendee {
     id: u64,
     name: String,
-    // Add more fields as needed
 }
 
 #[derive(candid::CandidType, Clone, Serialize, Deserialize, Default)]
@@ -34,7 +34,6 @@ struct Ticket {
     attendee: String,
     ticket_type: String,
     ticket_price: u64,
-    // Add more ticket-specific details as needed
 }
 
 impl Storable for Event {
@@ -113,6 +112,8 @@ struct EventPayload {
     name: String,
     details: String,
     location: String,
+    start_date: String,
+    end_date: String,
 }
 
 #[derive(candid::CandidType, Serialize, Deserialize, Default)]
@@ -136,6 +137,8 @@ fn add_event(event: EventPayload) -> Option<Event> {
         name: event.name,
         details: event.details,
         location: event.location,
+        start_date: event.start_date,
+        end_date: event.end_date,
         timestamp: time(),
         attendees: Vec::new(),
     };
@@ -200,6 +203,37 @@ fn get_events() -> Vec<Event> {
         borrowed_service.iter().map(|(_, event)| event.clone()).collect()
     })
 }
+
+#[ic_cdk::query]
+fn get_upcoming_events() -> Vec<Event> {
+    let current_time = time();
+    EVENTS_STORAGE.with(|service| {
+        let borrowed_service = service.borrow();
+        borrowed_service
+            .iter()
+            .filter(|(_, event)| {
+                event.timestamp > current_time
+            })
+            .map(|(_, event)| event.clone())
+            .collect()
+    })
+}
+
+#[ic_cdk::query]
+fn get_past_events() -> Vec<Event> {
+    let current_time = time();
+    EVENTS_STORAGE.with(|service| {
+        let borrowed_service = service.borrow();
+        borrowed_service
+            .iter()
+            .filter(|(_, event)| {
+                event.timestamp <= current_time
+            })
+            .map(|(_, event)| event.clone())
+            .collect()
+    })
+}
+
 
 #[ic_cdk::update]
 fn add_attendees(event_id: u64, attendees: Vec<u64>) -> Result<(), Error> {

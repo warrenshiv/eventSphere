@@ -6,12 +6,20 @@ type Error = variant {
 type Event = record {
   id : nat64;
   name : text;
+  end_date : text;
+  start_date : text;
   timestamp : nat64;
   attendees : vec nat64;
   details : text;
   location : text;
 };
-type EventPayload = record { name : text; details : text; location : text };
+type EventPayload = record {
+  name : text;
+  end_date : text;
+  start_date : text;
+  details : text;
+  location : text;
+};
 type Result = variant { Ok; Err : Error };
 type Result_1 = variant { Ok : Event; Err : Error };
 type Result_2 = variant { Ok : Ticket; Err : Error };
@@ -39,6 +47,8 @@ service : {
   get_event : (nat64) -> (Result_1) query;
   get_event_by_name : (text) -> (opt Event) query;
   get_events : () -> (vec Event) query;
+  get_past_events : () -> (vec Event) query;
   get_tickets : (nat64) -> (vec Ticket) query;
+  get_upcoming_events : () -> (vec Event) query;
   update_event : (nat64, EventPayload) -> (Result_1);
 }
