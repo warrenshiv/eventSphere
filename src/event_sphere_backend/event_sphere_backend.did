@@ -35,6 +35,7 @@ type Ticket = record {
 };
 type TicketPayload = record {
   ticket_price : nat64;
+  num_tickets : nat32;
   ticket_type : TicketType;
   event_id : nat64;
 };
@@ -48,7 +49,7 @@ type TicketType = variant { VIP; VVIP; Regular; Discount };
 service : {
   add_attendees : (nat64, AttendeePayload) -> (Result);
   add_event : (EventPayload) -> (opt Event);
-  add_ticket : (TicketPayload) -> (opt Ticket);
+  add_ticket : (TicketPayload) -> (opt vec Ticket);
   delete_event : (nat64) -> (Result_1);
   delete_ticket : (nat64) -> (Result_2);
   get_attendees : (nat64) -> (Result_3) query;
