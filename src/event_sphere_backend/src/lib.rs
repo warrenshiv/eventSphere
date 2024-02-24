@@ -158,13 +158,24 @@ struct TicketPurchasePayload {
 
 // Event Queries
 #[ic_cdk::update]
-fn add_event(event: EventPayload) -> Option<Event> {
+fn add_event(event: EventPayload) -> Result<Event, Error> {
+    // Validate user payload: all fields are required
+    if event.name.is_empty()
+        || event.details.is_empty()
+        || event.location.is_empty()
+        || event.start_date.is_empty()
+        || event.end_date.is_empty()
+    {
+        return Err(Error::CustomError("All fields are required".to_string()));
+    }
+
     let id = ID_COUNTER
         .with(|counter| {
             let current_value = *counter.borrow().get();
             counter.borrow_mut().set(current_value + 1)
         })
         .expect("cannot increment id counter");
+
     let event = Event {
         id,
         name: event.name,
@@ -176,7 +187,7 @@ fn add_event(event: EventPayload) -> Option<Event> {
         attendees: Vec::new(),
     };
     do_insert_event(&event);
-    Some(event)
+    Ok(event)
 }
 
 #[ic_cdk::update]
