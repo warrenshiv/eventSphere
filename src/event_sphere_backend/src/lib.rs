@@ -401,6 +401,16 @@ fn purchase_ticket(payload: TicketPurchasePayload) -> Result<Vec<Ticket>, Error>
     // Check if the event exists
     match _get_event(&event_id) {
         Some(_event) => {
+            // Check if there are enough tickets available
+            let available_tickets_count =
+                get_available_tickets_count(event_id, ticket_type.clone());
+            if available_tickets_count < num_tickets {
+                return Err(Error::CustomError(format!(
+                    "Not enough tickets available for type: {}",
+                    ticket_type
+                )));
+            }
+
             // Fetch ticket price from TICKETS_STORAGE
             let ticket_price = TICKETS_STORAGE
                 .with(|service| {
@@ -419,48 +429,10 @@ fn purchase_ticket(payload: TicketPurchasePayload) -> Result<Vec<Ticket>, Error>
                     ic_cdk::print(
                         "Ticket price not found for the specified ticket type and event ID.",
                     );
-                    0 // Default ticket price
+                    0
                 });
 
-            // Reduce the number of available tickets
-            TICKETS_STORAGE.with(|service| {
-                let mut borrowed_service = service.borrow_mut();
-                let mut removed_tickets = Vec::new();
-
-                // Filter and remove purchased tickets
-                let mut remaining_tickets =
-                    StableBTreeMap::new(MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(2))));
-                for (ticket_id, ticket) in borrowed_service.iter() {
-                    if ticket.event_id == event_id
-                        && &ticket.ticket_type == &ticket_type.to_string()
-                    {
-                        if removed_tickets.len() < num_tickets {
-                            removed_tickets.push(ticket_id.clone());
-                        } else {
-                            remaining_tickets.insert(ticket_id.clone(), ticket.clone());
-                        }
-                    } else {
-                        remaining_tickets.insert(ticket_id.clone(), ticket.clone());
-                    }
-                }
-
-                // Replace TICKETS_STORAGE with remaining tickets
-                *borrowed_service = remaining_tickets;
-
-                ic_cdk::print(&format!("Removed tickets: {:?}", removed_tickets));
-            });
-
-            // Check if there are enough tickets available
-            let available_tickets_count =
-                get_available_tickets_count(event_id, ticket_type.clone());
-            if available_tickets_count < num_tickets {
-                return Err(Error::CustomError(format!(
-                    "Not enough tickets available for type: {}",
-                    ticket_type
-                )));
-            }
-
-            // Generate tickets only if available
+            // Generate tickets
             let mut tickets = Vec::new();
             for _ in 0..num_tickets {
                 let id = ID_COUNTER
@@ -474,12 +446,38 @@ fn purchase_ticket(payload: TicketPurchasePayload) -> Result<Vec<Ticket>, Error>
                     ticket_id: id,
                     event_id: event_id,
                     ticket_type: ticket_type.to_string(),
-                    ticket_price: ticket_price, // Assign the fetched ticket price
+                    ticket_price: ticket_price,
                 };
 
                 tickets.push(ticket.clone());
                 do_insert_ticket(&ticket);
             }
+
+            // Reduce the number of available tickets
+            TICKETS_STORAGE.with(|service| {
+                let mut borrowed_service = service.borrow_mut();
+                let mut removed_tickets = Vec::new();
+
+                // Filter and remove purchased tickets
+                let mut remaining_tickets = Vec::new(); // to hold tickets that were not purchased
+                for (ticket_id, ticket) in borrowed_service.iter() {
+                    if ticket.event_id == event_id
+                        && &ticket.ticket_type == &ticket_type.to_string()
+                    {
+                        removed_tickets.push(ticket_id.clone()); // adding purchased tickets to removal list
+                    } else {
+                        remaining_tickets.push((ticket_id.clone(), ticket.clone()));
+                        // adding non-purchased tickets to remaining list
+                    }
+                }
+
+                // Update TICKETS_STORAGE with remaining tickets
+                for (ticket_id, ticket) in remaining_tickets {
+                    borrowed_service.insert(ticket_id, ticket); // insert non-purchased tickets back to TICKETS_STORAGE
+                }
+
+                ic_cdk::print(&format!("Removed tickets: {:?}", removed_tickets));
+            });
 
             // Update the event with the attendee's name
             add_attendees(
@@ -498,7 +496,6 @@ fn purchase_ticket(payload: TicketPurchasePayload) -> Result<Vec<Ticket>, Error>
         }),
     }
 }
-
 // helper method to perform insert for events.
 fn do_insert_event(event: &Event) {
     EVENTS_STORAGE.with(|service| service.borrow_mut().insert(event.id, event.clone()));
