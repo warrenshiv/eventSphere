@@ -403,7 +403,7 @@ fn get_available_tickets_count(event_id: u64, ticket_type: TicketType) -> usize 
 
 // Ticket Purchase
 #[ic_cdk::update]
-fn purchase_ticket(payload: TicketPurchasePayload) -> Result<Vec<Ticket>, Error> {
+fn purchase_ticket(payload: TicketPurchasePayload) -> Result<(Vec<Ticket>, u64), Error> {
     let event_id = payload.event_id;
     let ticket_type = payload.ticket_type.clone();
     let attendee_name = payload.attendee_name;
@@ -445,6 +445,7 @@ fn purchase_ticket(payload: TicketPurchasePayload) -> Result<Vec<Ticket>, Error>
 
             // Generate tickets
             let mut tickets = Vec::new();
+            let mut total_cost = 0;
             for _ in 0..num_tickets {
                 let id = ID_COUNTER
                     .with(|counter| {
@@ -460,6 +461,7 @@ fn purchase_ticket(payload: TicketPurchasePayload) -> Result<Vec<Ticket>, Error>
                     ticket_price: ticket_price,
                 };
 
+                total_cost += ticket_price; // Add the price of each ticket to the total cost
                 tickets.push(ticket.clone());
                 do_insert_ticket(&ticket);
             }
@@ -499,14 +501,15 @@ fn purchase_ticket(payload: TicketPurchasePayload) -> Result<Vec<Ticket>, Error>
             )
             .expect("Failed to add attendee");
 
-            // Return purchased tickets
-            Ok(tickets)
+            // Return purchased tickets and total cost
+            Ok((tickets, total_cost))
         }
         None => Err(Error::NotFound {
             msg: format!("Event with ID {} not found.", event_id),
         }),
     }
 }
+
 // helper method to perform insert for events.
 fn do_insert_event(event: &Event) {
     EVENTS_STORAGE.with(|service| service.borrow_mut().insert(event.id, event.clone()));
