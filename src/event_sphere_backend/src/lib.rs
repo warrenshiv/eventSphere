@@ -5,6 +5,7 @@ use ic_cdk::api::time;
 use ic_stable_structures::memory_manager::{MemoryId, MemoryManager, VirtualMemory};
 use ic_stable_structures::{BoundedStorable, Cell, DefaultMemoryImpl, StableBTreeMap, Storable};
 use std::{borrow::Cow, cell::RefCell};
+use std::fmt;
 
 type Memory = VirtualMemory<DefaultMemoryImpl>;
 type IdCell = Cell<u64, Memory>;
@@ -28,6 +29,17 @@ enum TicketType {
     VVIP,
     VIP,
     Discount,
+}
+
+impl fmt::Display for TicketType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TicketType::Regular => write!(f, "Regular"),
+            TicketType::VVIP => write!(f, "VVIP"),
+            TicketType::VIP => write!(f, "VIP"),
+            TicketType::Discount => write!(f, "Discount"),
+        }
+    }
 }
 
 #[derive(candid::CandidType, Clone, Serialize, Deserialize, Default)]
@@ -308,7 +320,7 @@ fn get_attendees(event_id: u64) -> Result<Vec<Attendee>, Error> {
 fn add_ticket(ticket_payload: TicketPayload) -> Option<Vec<Ticket>> {
     let event_id = ticket_payload.event_id;
     let num_tickets = ticket_payload.num_tickets;
-    
+
     match _get_event(&event_id) {
         Some(_) => {
             let mut tickets = Vec::new();
@@ -339,7 +351,6 @@ fn add_ticket(ticket_payload: TicketPayload) -> Option<Vec<Ticket>> {
     }
 }
 
-
 #[ic_cdk::query]
 fn get_tickets(event_id: u64) -> Vec<Ticket> {
     TICKETS_STORAGE.with(|service| {
@@ -365,6 +376,21 @@ fn delete_ticket(ticket_id: u64) -> Result<Ticket, Error> {
     }
 }
 
+// Get the number of available tickets for a specific event and ticket type
+#[ic_cdk::query]
+fn get_available_tickets_count(event_id: u64, ticket_type: TicketType) -> usize {
+    TICKETS_STORAGE.with(|service| {
+        let borrowed_service = service.borrow();
+        borrowed_service
+            .iter()
+            .filter(|(_, ticket)| {
+                ticket.event_id == event_id && &ticket.ticket_type == &ticket_type.to_string()
+            })
+            .count()
+    })
+}
+
+// Ticket Purchase
 #[ic_cdk::update]
 fn purchase_ticket(payload: TicketPurchasePayload) -> Result<Vec<Ticket>, Error> {
     let event_id = payload.event_id;
@@ -387,27 +413,35 @@ fn purchase_ticket(payload: TicketPurchasePayload) -> Result<Vec<Ticket>, Error>
                     // Find the ticket by event_id and ticket_type
                     borrowed_service
                         .iter()
-                        .find(|(_, ticket)| ticket.event_id == event_id && &ticket.ticket_type == &ticket_type)
+                        .find(|(_, ticket)| {
+                            ticket.event_id == event_id && &ticket.ticket_type == &ticket_type
+                        })
                         .map(|(_, ticket)| ticket.ticket_price)
                 })
                 .unwrap_or_else(|| {
                     // If the ticket price is not found, return a default price or handle the error as needed
-                    ic_cdk::print("Ticket price not found for the specified ticket type and event ID.");
+                    ic_cdk::print(
+                        "Ticket price not found for the specified ticket type and event ID.",
+                    );
                     0
                 });
 
             // Check if there are enough tickets available
-            let available_tickets = TICKETS_STORAGE
-                .with(|service| {
-                    let borrowed_service = service.borrow();
-                    borrowed_service
-                        .iter()
-                        .filter(|(_, ticket)| ticket.event_id == event_id && &ticket.ticket_type == &ticket_type)
-                        .count()
-                });
-            
+            let available_tickets = TICKETS_STORAGE.with(|service| {
+                let borrowed_service = service.borrow();
+                borrowed_service
+                    .iter()
+                    .filter(|(_, ticket)| {
+                        ticket.event_id == event_id && &ticket.ticket_type == &ticket_type
+                    })
+                    .count()
+            });
+
             if available_tickets < num_tickets as usize {
-                return Err(Error::CustomError(format!("Not enough tickets available for type: {}", ticket_type)));
+                return Err(Error::CustomError(format!(
+                    "Not enough tickets available for type: {}",
+                    ticket_type
+                )));
             }
 
             // Generate tickets
@@ -419,14 +453,14 @@ fn purchase_ticket(payload: TicketPurchasePayload) -> Result<Vec<Ticket>, Error>
                         counter.borrow_mut().set(current_value + 1)
                     })
                     .expect("cannot increment id counter");
-                
+
                 let ticket = Ticket {
                     ticket_id: id,
                     event_id: event_id,
-                    ticket_type: ticket_type.clone(), // Clone the ticket_type string
+                    ticket_type: ticket_type.clone(),
                     ticket_price: ticket_price,
                 };
-                
+
                 tickets.push(ticket.clone());
                 do_insert_ticket(&ticket);
             }
@@ -436,7 +470,9 @@ fn purchase_ticket(payload: TicketPurchasePayload) -> Result<Vec<Ticket>, Error>
                 let mut borrowed_service = service.borrow_mut();
                 let tickets_to_remove = borrowed_service
                     .iter()
-                    .filter(|(_, ticket)| ticket.event_id == event_id && &ticket.ticket_type == &ticket_type)
+                    .filter(|(_, ticket)| {
+                        ticket.event_id == event_id && &ticket.ticket_type == &ticket_type
+                    })
                     .take(num_tickets as usize)
                     .map(|(id, _)| id)
                     .collect::<Vec<_>>();
@@ -447,7 +483,13 @@ fn purchase_ticket(payload: TicketPurchasePayload) -> Result<Vec<Ticket>, Error>
             });
 
             // Update the event with the attendee's name
-            add_attendees(event_id, AttendeePayload { name: attendee_name }).expect("Failed to add attendee");
+            add_attendees(
+                event_id,
+                AttendeePayload {
+                    name: attendee_name,
+                },
+            )
+            .expect("Failed to add attendee");
 
             Ok(tickets)
         }
@@ -456,7 +498,6 @@ fn purchase_ticket(payload: TicketPurchasePayload) -> Result<Vec<Ticket>, Error>
         }),
     }
 }
-
 
 // helper method to perform insert for events.
 fn do_insert_event(event: &Event) {
