@@ -4,8 +4,8 @@ use candid::{Decode, Encode};
 use ic_cdk::api::time;
 use ic_stable_structures::memory_manager::{MemoryId, MemoryManager, VirtualMemory};
 use ic_stable_structures::{BoundedStorable, Cell, DefaultMemoryImpl, StableBTreeMap, Storable};
-use std::{borrow::Cow, cell::RefCell};
 use std::fmt;
+use std::{borrow::Cow, cell::RefCell};
 
 type Memory = VirtualMemory<DefaultMemoryImpl>;
 type IdCell = Cell<u64, Memory>;
@@ -22,7 +22,7 @@ struct Event {
     attendees: Vec<Attendee>,
 }
 
-#[derive(candid::CandidType, Serialize, Deserialize, Default, Debug)]
+#[derive(candid::CandidType, Serialize, Deserialize, Default, Debug, Clone)]
 enum TicketType {
     #[default]
     Regular,
@@ -394,18 +394,23 @@ fn get_available_tickets_count(event_id: u64, ticket_type: TicketType) -> usize 
 #[ic_cdk::update]
 fn purchase_ticket(payload: TicketPurchasePayload) -> Result<Vec<Ticket>, Error> {
     let event_id = payload.event_id;
-    let ticket_type = match payload.ticket_type {
-        TicketType::VVIP => "VVIP".to_string(),
-        TicketType::VIP => "VIP".to_string(),
-        TicketType::Regular => "Regular".to_string(),
-        TicketType::Discount => "Discount".to_string(),
-    };
+    let ticket_type = payload.ticket_type.clone();
     let attendee_name = payload.attendee_name;
-    let num_tickets = payload.num_tickets;
+    let num_tickets = payload.num_tickets as usize; // Convert num_tickets to usize
 
     // Check if the event exists
     match _get_event(&event_id) {
         Some(_event) => {
+            // Check if there are enough tickets available
+            let available_tickets_count =
+                get_available_tickets_count(event_id, ticket_type.clone());
+            if available_tickets_count < num_tickets {
+                return Err(Error::CustomError(format!(
+                    "Not enough tickets available for type: {}",
+                    ticket_type
+                )));
+            }
+
             // Fetch ticket price from TICKETS_STORAGE
             let ticket_price = TICKETS_STORAGE
                 .with(|service| {
@@ -414,7 +419,8 @@ fn purchase_ticket(payload: TicketPurchasePayload) -> Result<Vec<Ticket>, Error>
                     borrowed_service
                         .iter()
                         .find(|(_, ticket)| {
-                            ticket.event_id == event_id && &ticket.ticket_type == &ticket_type
+                            ticket.event_id == event_id
+                                && &ticket.ticket_type == &ticket_type.to_string()
                         })
                         .map(|(_, ticket)| ticket.ticket_price)
                 })
@@ -425,24 +431,6 @@ fn purchase_ticket(payload: TicketPurchasePayload) -> Result<Vec<Ticket>, Error>
                     );
                     0
                 });
-
-            // Check if there are enough tickets available
-            let available_tickets = TICKETS_STORAGE.with(|service| {
-                let borrowed_service = service.borrow();
-                borrowed_service
-                    .iter()
-                    .filter(|(_, ticket)| {
-                        ticket.event_id == event_id && &ticket.ticket_type == &ticket_type
-                    })
-                    .count()
-            });
-
-            if available_tickets < num_tickets as usize {
-                return Err(Error::CustomError(format!(
-                    "Not enough tickets available for type: {}",
-                    ticket_type
-                )));
-            }
 
             // Generate tickets
             let mut tickets = Vec::new();
@@ -457,7 +445,7 @@ fn purchase_ticket(payload: TicketPurchasePayload) -> Result<Vec<Ticket>, Error>
                 let ticket = Ticket {
                     ticket_id: id,
                     event_id: event_id,
-                    ticket_type: ticket_type.clone(),
+                    ticket_type: ticket_type.to_string(),
                     ticket_price: ticket_price,
                 };
 
@@ -471,11 +459,14 @@ fn purchase_ticket(payload: TicketPurchasePayload) -> Result<Vec<Ticket>, Error>
                 let tickets_to_remove = borrowed_service
                     .iter()
                     .filter(|(_, ticket)| {
-                        ticket.event_id == event_id && &ticket.ticket_type == &ticket_type
+                        ticket.event_id == event_id
+                            && &ticket.ticket_type == &ticket_type.to_string()
                     })
-                    .take(num_tickets as usize)
+                    .take(num_tickets)
                     .map(|(id, _)| id)
                     .collect::<Vec<_>>();
+
+                ic_cdk::print(&format!("Tickets to remove: {:?}", tickets_to_remove));
 
                 for ticket_id in tickets_to_remove {
                     borrowed_service.remove(&ticket_id);
