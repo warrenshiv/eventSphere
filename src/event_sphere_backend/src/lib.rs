@@ -21,6 +21,15 @@ struct Event {
     attendees: Vec<Attendee>,
 }
 
+#[derive(candid::CandidType, Serialize, Deserialize, Default, Debug)]
+enum TicketType {
+    #[default]
+    Regular,
+    VVIP,
+    VIP,
+    Discount,
+}
+
 #[derive(candid::CandidType, Clone, Serialize, Deserialize, Default)]
 struct Attendee {
     name: String,
@@ -30,7 +39,6 @@ struct Attendee {
 struct Ticket {
     ticket_id: u64,
     event_id: u64,
-    attendee: String,
     ticket_type: String,
     ticket_price: u64,
 }
@@ -123,9 +131,16 @@ struct AttendeePayload {
 #[derive(candid::CandidType, Serialize, Deserialize, Default)]
 struct TicketPayload {
     event_id: u64,
-    attendee: String,
-    ticket_type: String,
+    ticket_type: TicketType,
     ticket_price: u64,
+}
+
+#[derive(candid::CandidType, Serialize, Deserialize)]
+struct TicketPurchasePayload {
+    event_id: u64,
+    ticket_type: TicketType,
+    attendee_name: String,
+    num_tickets: u32,
 }
 
 // Event Queries
@@ -287,18 +302,7 @@ fn get_attendees(event_id: u64) -> Result<Vec<Attendee>, Error> {
     }
 }
 
-#[ic_cdk::query]
-fn get_tickets(event_id: u64) -> Vec<Ticket> {
-    TICKETS_STORAGE.with(|service| {
-        let borrowed_service = service.borrow();
-        borrowed_service
-            .iter()
-            .filter(|(_, ticket)| ticket.event_id == event_id)
-            .map(|(_, ticket)| ticket.clone())
-            .collect()
-    })
-}
-
+// Ticket Queries
 #[ic_cdk::update]
 fn add_ticket(ticket: TicketPayload) -> Option<Ticket> {
     let event_id = ticket.event_id;
@@ -313,8 +317,12 @@ fn add_ticket(ticket: TicketPayload) -> Option<Ticket> {
             let ticket = Ticket {
                 ticket_id: id,
                 event_id: ticket.event_id,
-                attendee: ticket.attendee,
-                ticket_type: ticket.ticket_type,
+                ticket_type: match ticket.ticket_type {
+                    TicketType::VVIP => "VVIP".to_string(),
+                    TicketType::VIP => "VIP".to_string(),
+                    TicketType::Regular => "Regular".to_string(),
+                    TicketType::Discount => "Discount".to_string(),
+                },
                 ticket_price: ticket.ticket_price,
             };
             do_insert_ticket(&ticket);
@@ -322,6 +330,18 @@ fn add_ticket(ticket: TicketPayload) -> Option<Ticket> {
         }
         None => None,
     }
+}
+
+#[ic_cdk::query]
+fn get_tickets(event_id: u64) -> Vec<Ticket> {
+    TICKETS_STORAGE.with(|service| {
+        let borrowed_service = service.borrow();
+        borrowed_service
+            .iter()
+            .filter(|(_, ticket)| ticket.event_id == event_id)
+            .map(|(_, ticket)| ticket.clone())
+            .collect()
+    })
 }
 
 #[ic_cdk::update]
@@ -333,6 +353,65 @@ fn delete_ticket(ticket_id: u64) -> Result<Ticket, Error> {
                 "couldn't delete a ticket with id={}. ticket not found.",
                 ticket_id
             ),
+        }),
+    }
+}
+
+#[ic_cdk::update]
+fn purchase_ticket(payload: TicketPurchasePayload) -> Result<Vec<Ticket>, Error> {
+    let event_id = payload.event_id;
+    let ticket_type = match payload.ticket_type {
+        TicketType::VVIP => "VVIP".to_string(),
+        TicketType::VIP => "VIP".to_string(),
+        TicketType::Regular => "Regular".to_string(),
+        TicketType::Discount => "Discount".to_string(),
+    };
+    let _attendee_name = payload.attendee_name;
+    let num_tickets = payload.num_tickets;
+
+    // Check if the event exists
+    match _get_event(&event_id) {
+        Some(_) => {
+            // Fetch ticket price from TICKETS_STORAGE
+            let ticket_price = TICKETS_STORAGE
+                .with(|service| {
+                    let borrowed_service = service.borrow();
+                    // Find the ticket by event_id and ticket_type
+                    borrowed_service
+                        .iter()
+                        .find(|(_, ticket)| ticket.event_id == event_id && &ticket.ticket_type == &ticket_type)
+                        .map(|(_, ticket)| ticket.ticket_price)
+                })
+                .unwrap_or_else(|| {
+                    // If the ticket price is not found, return a default price or handle the error as needed
+                    ic_cdk::print("Ticket price not found for the specified ticket type and event ID.");
+                    0
+                });
+
+            // Generate tickets
+            let mut tickets = Vec::new();
+            for _ in 0..num_tickets {
+                let id = ID_COUNTER
+                    .with(|counter| {
+                        let current_value = *counter.borrow().get();
+                        counter.borrow_mut().set(current_value + 1)
+                    })
+                    .expect("cannot increment id counter");
+                
+                let ticket = Ticket {
+                    ticket_id: id,
+                    event_id: event_id,
+                    ticket_type: ticket_type.clone(), // Clone the ticket_type string
+                    ticket_price: ticket_price,
+                };
+                
+                tickets.push(ticket.clone());
+                do_insert_ticket(&ticket);
+            }
+            Ok(tickets)
+        }
+        None => Err(Error::NotFound {
+            msg: format!("Event with ID {} not found.", event_id),
         }),
     }
 }
