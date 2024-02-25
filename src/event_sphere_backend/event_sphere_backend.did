@@ -27,8 +27,8 @@ type Result_1 = variant { Ok : Event; Err : Error };
 type Result_2 = variant { Ok : Ticket; Err : Error };
 type Result_3 = variant { Ok : vec Attendee; Err : Error };
 type Result_4 = variant { Ok : opt Event; Err : Error };
-type Result_5 = variant { Ok : vec Ticket; Err : Error };
-type Result_6 = variant { Ok : vec Event; Err : Error };
+type Result_5 = variant { Ok : vec Event; Err : Error };
+type Result_6 = variant { Ok : vec Ticket; Err : Error };
 type Result_7 = variant { Ok : record { vec Ticket; nat64 }; Err : Error };
 type Ticket = record {
   ticket_price : nat64;
@@ -61,9 +61,9 @@ service : {
   get_event : (nat64) -> (Result_1) query;
   get_event_by_name : (text) -> (Result_4) query;
   get_events : () -> (vec Event) query;
-  get_past_events : () -> (vec Event) query;
-  get_tickets : (nat64) -> (Result_5) query;
-  get_upcoming_events : () -> (Result_6) query;
+  get_past_events : () -> (Result_5) query;
+  get_tickets : (nat64) -> (Result_6) query;
+  get_upcoming_events : () -> (Result_5) query;
   purchase_ticket : (TicketPurchasePayload) -> (Result_7);
   update_event : (nat64, EventPayload) -> (Result_1);
 }
