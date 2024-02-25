@@ -273,11 +273,15 @@ fn get_event_by_name(name: String) -> Result<Option<Event>, Error> {
     });
 
     // Check if an event with the provided name was found
-    match found_event {
-        Some(event) => Ok(Some(event)),
-        None => Ok(None),
+    if let Some(event) = found_event {
+        Ok(Some(event))
+    } else {
+        Err(Error::NotFound {
+            msg: format!("Event with name '{}' not found", name),
+        })
     }
 }
+
 
 
 #[ic_cdk::query]
