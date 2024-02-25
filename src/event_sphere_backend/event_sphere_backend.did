@@ -60,7 +60,7 @@ service : {
   get_available_tickets_count : (nat64, TicketType) -> (nat64) query;
   get_event : (nat64) -> (Result_1) query;
   get_event_by_name : (text) -> (Result_4) query;
-  get_events : () -> (vec Event) query;
+  get_events : () -> (Result_5) query;
   get_past_events : () -> (Result_5) query;
   get_tickets : (nat64) -> (Result_6) query;
   get_upcoming_events : () -> (Result_5) query;

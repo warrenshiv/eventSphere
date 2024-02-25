@@ -281,15 +281,24 @@ fn get_event_by_name(name: String) -> Result<Option<Event>, Error> {
 
 
 #[ic_cdk::query]
-fn get_events() -> Vec<Event> {
-    EVENTS_STORAGE.with(|service| {
+fn get_events() -> Result<Vec<Event>, Error> {
+    let events = EVENTS_STORAGE.with(|service| {
         let borrowed_service = service.borrow();
-        borrowed_service
+        let events: Vec<Event> = borrowed_service
             .iter()
             .map(|(_, event)| event.clone())
-            .collect()
-    })
+            .collect();
+
+        events
+    });
+
+    if events.is_empty() {
+        Err(Error::CustomError("No events available".to_string()))
+    } else {
+        Ok(events)
+    }
 }
+
 
 #[ic_cdk::query]
 fn get_upcoming_events() -> Result<Vec<Event>, Error> {
