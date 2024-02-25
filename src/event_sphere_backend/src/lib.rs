@@ -193,11 +193,23 @@ fn add_event(event: EventPayload) -> Result<Event, Error> {
 
 #[ic_cdk::update]
 fn update_event(event_id: u64, payload: EventPayload) -> Result<Event, Error> {
+    // Validate that all fields in the payload are filled
+    if payload.name.is_empty()
+        || payload.details.is_empty()
+        || payload.location.is_empty()
+        || payload.start_date.is_empty()
+        || payload.end_date.is_empty()
+    {
+        return Err(Error::CustomError("All fields in the payload are required".to_string()));
+    }
+
     match EVENTS_STORAGE.with(|service| service.borrow().get(&event_id)) {
         Some(mut event) => {
             event.name = payload.name;
             event.details = payload.details;
             event.location = payload.location;
+            event.start_date = payload.start_date;
+            event.end_date = payload.end_date;
             do_insert_event(&event);
             Ok(event)
         }
@@ -234,18 +246,32 @@ fn get_event(event_id: u64) -> Result<Event, Error> {
 }
 
 #[ic_cdk::query]
-fn get_event_by_name(name: String) -> Option<Event> {
+fn get_event_by_name(name: String) -> Result<Option<Event>, Error> {
+    // Validate that the event name is not empty
+    if name.is_empty() {
+        return Err(Error::CustomError("Event name cannot be empty".to_string()));
+    }
+
     let lowercase_name = name.to_lowercase();
+    let mut found_event = None;
+
     EVENTS_STORAGE.with(|service| {
         let borrowed_service = service.borrow();
         for (_, event) in borrowed_service.iter() {
             if event.name.to_lowercase() == lowercase_name {
-                return Some(event.clone());
+                found_event = Some(event.clone());
+                break;
             }
         }
-        None
-    })
+    });
+
+    // Check if an event with the provided name was found
+    match found_event {
+        Some(event) => Ok(Some(event)),
+        None => Ok(None),
+    }
 }
+
 
 #[ic_cdk::query]
 fn get_events() -> Vec<Event> {
@@ -287,12 +313,16 @@ fn get_past_events() -> Vec<Event> {
 // Attendee Queries
 #[ic_cdk::update]
 fn add_attendees(event_id: u64, attendee_payload: AttendeePayload) -> Result<(), Error> {
+    // Validate that the attendee name is not empty
+    if attendee_payload.name.is_empty() {
+        return Err(Error::CustomError("Attendee name cannot be empty".to_string()));
+    }
+
     match EVENTS_STORAGE.with(|service| {
         let mut events_storage = service.borrow_mut();
         if let Some(event) = events_storage.get(&event_id) {
             // Use get to get a reference to the event
             let attendee = Attendee {
-                // Assuming you have an id field in the AttendeePayload
                 name: attendee_payload.name.clone(), // Cloning the name field
             };
             let mut cloned_event = event.clone(); // Cloning the event to modify it
@@ -301,7 +331,7 @@ fn add_attendees(event_id: u64, attendee_payload: AttendeePayload) -> Result<(),
             Ok(()) // Return Ok if successful
         } else {
             Err(Error::NotFound {
-                msg: format!("event with id={} not found", event_id),
+                msg: format!("Event with id={} not found", event_id),
             })
         }
     }) {
@@ -309,6 +339,7 @@ fn add_attendees(event_id: u64, attendee_payload: AttendeePayload) -> Result<(),
         Err(err) => Err(err),
     }
 }
+
 
 #[ic_cdk::query]
 fn get_attendees(event_id: u64) -> Result<Vec<Attendee>, Error> {
