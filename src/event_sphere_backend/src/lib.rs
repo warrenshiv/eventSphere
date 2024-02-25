@@ -472,7 +472,7 @@ fn purchase_ticket(payload: TicketPurchasePayload) -> Result<(Vec<Ticket>, u64),
 
             // Subtract the number of purchased tickets from the total number of tickets in TICKETS_STORAGE
             TICKETS_STORAGE.with(|service| {
-                let borrowed_service = service.borrow_mut();
+                let mut borrowed_service = service.borrow_mut();
                 // Iterate over tickets to find and update the available ticket count
                 for (_, mut ticket) in borrowed_service.iter() {
                     if ticket.event_id == event_id
