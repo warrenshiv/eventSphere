@@ -353,7 +353,7 @@ fn generate_tickets(ticket_payload: TicketPayload) -> Option<Vec<Ticket>> {
                         TicketType::Discount => "Discount".to_string(),
                     },
                     ticket_price: ticket_payload.ticket_price,
-                    num_tickets: ticket_payload.num_tickets,
+                    num_tickets: 1,
                 };
                 do_insert_ticket(&new_ticket);
                 tickets.push(new_ticket);
@@ -399,7 +399,8 @@ fn get_available_tickets_count(event_id: u64, ticket_type: TicketType) -> usize 
             .filter(|(_, ticket)| {
                 ticket.event_id == event_id && &ticket.ticket_type == &ticket_type.to_string()
             })
-            .count()
+            .map(|(_, ticket)| ticket.num_tickets as usize)
+            .sum()
     })
 }
 
