@@ -223,7 +223,14 @@ fn update_event(event_id: u64, payload: EventPayload) -> Result<Event, Error> {
 }
 
 #[ic_cdk::update]
-fn delete_event(event_id: u64) -> Result<Event, Error> {
+fn delete_event(event_id: Option<u64>) -> Result<Event, Error> {
+    // Validate that the event_id is provided
+    let event_id = match event_id {
+        Some(id) => id,
+        None => return Err(Error::CustomError("Event ID must be provided".to_string())),
+    };
+
+    // Proceed with the deletion as before
     match EVENTS_STORAGE.with(|service| service.borrow_mut().remove(&event_id)) {
         Some(event) => Ok(event),
         None => Err(Error::NotFound {

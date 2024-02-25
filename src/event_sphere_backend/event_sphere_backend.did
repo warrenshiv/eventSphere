@@ -52,7 +52,7 @@ type TicketType = variant { VIP; VVIP; Regular; Discount };
 service : {
   add_attendees : (nat64, AttendeePayload) -> (Result);
   add_event : (EventPayload) -> (Result_1);
-  delete_event : (nat64) -> (Result_1);
+  delete_event : (opt nat64) -> (Result_1);
   delete_ticket : (nat64) -> (Result_2);
   generate_tickets : (TicketPayload) -> (opt vec Ticket);
   get_attendees : (nat64) -> (Result_3) query;
