@@ -30,6 +30,7 @@ type Result_4 = variant { Ok : record { vec Ticket; nat64 }; Err : Error };
 type Ticket = record {
   ticket_price : nat64;
   ticket_id : nat64;
+  num_tickets : nat32;
   ticket_type : text;
   event_id : nat64;
 };

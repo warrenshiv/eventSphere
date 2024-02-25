@@ -53,6 +53,7 @@ struct Ticket {
     event_id: u64,
     ticket_type: String,
     ticket_price: u64,
+    num_tickets: u32,
 }
 
 impl Storable for Event {
@@ -352,6 +353,7 @@ fn generate_tickets(ticket_payload: TicketPayload) -> Option<Vec<Ticket>> {
                         TicketType::Discount => "Discount".to_string(),
                     },
                     ticket_price: ticket_payload.ticket_price,
+                    num_tickets: ticket_payload.num_tickets,
                 };
                 do_insert_ticket(&new_ticket);
                 tickets.push(new_ticket);
@@ -459,6 +461,7 @@ fn purchase_ticket(payload: TicketPurchasePayload) -> Result<(Vec<Ticket>, u64),
                     event_id: event_id,
                     ticket_type: ticket_type.to_string(),
                     ticket_price: ticket_price,
+                    num_tickets: num_tickets as u32,
                 };
 
                 total_cost += ticket_price; // Add the price of each ticket to the total cost
