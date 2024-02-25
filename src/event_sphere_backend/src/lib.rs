@@ -462,7 +462,7 @@ fn purchase_ticket(payload: TicketPurchasePayload) -> Result<(Vec<Ticket>, u64),
                     event_id: event_id,
                     ticket_type: ticket_type.to_string(),
                     ticket_price: ticket_price,
-                    num_tickets: num_tickets as u32,
+                    num_tickets: 1,
                 };
 
                 total_cost += ticket_price; // Add the price of each ticket to the total cost
@@ -470,30 +470,17 @@ fn purchase_ticket(payload: TicketPurchasePayload) -> Result<(Vec<Ticket>, u64),
                 do_insert_ticket(&ticket);
             }
 
-            // Reduce the number of available tickets
+            // Subtract the number of purchased tickets from the total number of tickets in TICKETS_STORAGE
             TICKETS_STORAGE.with(|service| {
-                let mut borrowed_service = service.borrow_mut();
-                let mut removed_tickets = Vec::new();
-
-                // Filter and remove purchased tickets
-                let mut remaining_tickets = Vec::new(); // to hold tickets that were not purchased
-                for (ticket_id, ticket) in borrowed_service.iter() {
+                let borrowed_service = service.borrow_mut();
+                // Iterate over tickets to find and update the available ticket count
+                for (_, mut ticket) in borrowed_service.iter() {
                     if ticket.event_id == event_id
                         && &ticket.ticket_type == &ticket_type.to_string()
                     {
-                        removed_tickets.push(ticket_id.clone()); // adding purchased tickets to removal list
-                    } else {
-                        remaining_tickets.push((ticket_id.clone(), ticket.clone()));
-                        // adding non-purchased tickets to remaining list
+                        ticket.num_tickets -= num_tickets as u32;
                     }
                 }
-
-                // Update TICKETS_STORAGE with remaining tickets
-                for (ticket_id, ticket) in remaining_tickets {
-                    borrowed_service.insert(ticket_id, ticket); // insert non-purchased tickets back to TICKETS_STORAGE
-                }
-
-                ic_cdk::print(&format!("Removed tickets: {:?}", removed_tickets));
             });
 
             // Update the event with the attendee's name
