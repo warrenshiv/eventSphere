@@ -446,42 +446,46 @@ fn purchase_ticket(payload: TicketPurchasePayload) -> Result<(Vec<Ticket>, u64),
                     0
                 });
 
-            // Generate tickets
+            // Calculate total cost
+            let total_cost = ticket_price * num_tickets as u64;
+
+            // Create tickets for the purchase
             let mut tickets = Vec::new();
-            let mut total_cost = 0;
             for _ in 0..num_tickets {
-                let id = ID_COUNTER
-                    .with(|counter| {
-                        let current_value = *counter.borrow().get();
-                        counter.borrow_mut().set(current_value + 1)
-                    })
-                    .expect("cannot increment id counter");
+                // Fetch a ticket from TICKETS_STORAGE
+                let ticket = TICKETS_STORAGE.with(|service| {
+                    let mut borrowed_service = service.borrow_mut();
+                    // Find and remove the first available ticket by event_id and ticket_type
+                    let ticket = borrowed_service
+                        .iter()
+                        .find(|(_, ticket)| {
+                            ticket.event_id == event_id
+                                && &ticket.ticket_type == &ticket_type.to_string()
+                        })
+                        .map(|(id, mut ticket)| {
+                            let cloned_ticket = ticket.clone();
+                            if ticket.num_tickets == 1 {
+                                // If it's the last ticket of this type, remove it from storage
+                                borrowed_service.remove(&id);
+                            } else {
+                                // Decrement the number of available tickets
+                                ticket.num_tickets -= 1;
+                            }
+                            cloned_ticket
+                        });
+                    ticket
+                });
 
-                let ticket = Ticket {
-                    ticket_id: id,
-                    event_id: event_id,
-                    ticket_type: ticket_type.to_string(),
-                    ticket_price: ticket_price,
-                    num_tickets: 1,
-                };
-
-                total_cost += ticket_price; // Add the price of each ticket to the total cost
-                tickets.push(ticket.clone());
-                do_insert_ticket(&ticket);
-            }
-
-            // Subtract the number of purchased tickets from the total number of tickets in TICKETS_STORAGE
-            TICKETS_STORAGE.with(|service| {
-                let mut borrowed_service = service.borrow_mut();
-                // Iterate over tickets to find and update the available ticket count
-                for (_, mut ticket) in borrowed_service.iter() {
-                    if ticket.event_id == event_id
-                        && &ticket.ticket_type == &ticket_type.to_string()
-                    {
-                        ticket.num_tickets -= num_tickets as u32;
-                    }
+                if let Some(ticket) = ticket {
+                    tickets.push(ticket);
+                } else {
+                    // Handle the case where a ticket is not found (should not occur if availability is properly checked)
+                    return Err(Error::CustomError(format!(
+                        "Failed to find available ticket for type: {}",
+                        ticket_type
+                    )));
                 }
-            });
+            }
 
             // Update the event with the attendee's name
             add_attendees(
