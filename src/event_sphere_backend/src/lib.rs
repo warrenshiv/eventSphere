@@ -365,16 +365,26 @@ fn generate_tickets(ticket_payload: TicketPayload) -> Option<Vec<Ticket>> {
 }
 
 #[ic_cdk::query]
-fn get_tickets(event_id: u64) -> Vec<Ticket> {
+fn get_tickets(event_id: u64) -> Result<Vec<Ticket>, Error> {
     TICKETS_STORAGE.with(|service| {
         let borrowed_service = service.borrow();
-        borrowed_service
+        let tickets: Vec<Ticket> = borrowed_service
             .iter()
             .filter(|(_, ticket)| ticket.event_id == event_id)
             .map(|(_, ticket)| ticket.clone())
-            .collect()
+            .collect();
+        
+        if tickets.is_empty() {
+            // If no tickets found for the specified event_id, return an error
+            return Err(Error::NotFound {
+                msg: format!("No tickets found for event with ID: {}", event_id),
+            });
+        }
+
+        Ok(tickets)
     })
 }
+
 
 #[ic_cdk::update]
 fn delete_ticket(ticket_id: u64) -> Result<Ticket, Error> {
