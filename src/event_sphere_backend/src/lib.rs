@@ -292,16 +292,25 @@ fn get_events() -> Vec<Event> {
 }
 
 #[ic_cdk::query]
-fn get_upcoming_events() -> Vec<Event> {
+fn get_upcoming_events() -> Result<Vec<Event>, Error> {
     let current_time = time();
-    EVENTS_STORAGE.with(|service| {
+
+    let upcoming_events = EVENTS_STORAGE.with(|service| {
         let borrowed_service = service.borrow();
-        borrowed_service
+        let events: Vec<Event> = borrowed_service
             .iter()
             .filter(|(_, event)| event.timestamp > current_time)
             .map(|(_, event)| event.clone())
-            .collect()
-    })
+            .collect();
+        
+        if events.is_empty() {
+            Err(Error::CustomError("No upcoming events available".to_string()))
+        } else {
+            Ok(events)
+        }
+    });
+
+    upcoming_events
 }
 
 #[ic_cdk::query]
