@@ -455,6 +455,12 @@ fn get_available_tickets_count(event_id: u64, ticket_type: TicketType) -> usize 
 // Ticket Purchase
 #[ic_cdk::update]
 fn purchase_ticket(payload: TicketPurchasePayload) -> Result<(Vec<Ticket>, u64), Error> {
+        // Validate that all fields in the payload are filled
+        if payload.attendee_name.is_empty()
+    {
+        return Err(Error::CustomError("All fields in the payload are required".to_string()));
+    }
+
     let event_id = payload.event_id;
     let ticket_type = payload.ticket_type.clone();
     let attendee_name = payload.attendee_name;
