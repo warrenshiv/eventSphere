@@ -16,10 +16,18 @@ struct Event {
     name: String,
     details: String,
     location: String,
-    start_date: String,
-    end_date: String,
+    start_date: Date,
+    end_date: Date,
     timestamp: u64,
     attendees: Vec<Attendee>,
+}
+
+// Define the Date struct
+#[derive(candid::CandidType, Clone, Serialize, Deserialize, Default)]
+struct Date {
+    year: u32,
+    month: u32,
+    day: u32,
 }
 
 #[derive(candid::CandidType, Serialize, Deserialize, Default, Debug, Clone)]
@@ -39,6 +47,28 @@ impl fmt::Display for TicketType {
             TicketType::VIP => write!(f, "VIP"),
             TicketType::Discount => write!(f, "Discount"),
         }
+    }
+}
+
+impl Date {
+    // Constructor method to create a new Date instance
+    fn new(day: u32, month: u32, year: u32) -> Self {
+        Date { year, month, day }
+    }
+
+    // Method to parse a date string in "DD-MM-YYYY" format and create a Date instance
+    fn from_string(date_string: &str) -> Option<Self> {
+        let parts: Vec<&str> = date_string.split('-').collect();
+        if parts.len() == 3 {
+            if let (Ok(day), Ok(month), Ok(year)) = (
+                parts[0].parse::<u32>(),
+                parts[1].parse::<u32>(),
+                parts[2].parse::<u32>(),
+            ) {
+                return Some(Date::new(day, month, year));
+            }
+        }
+        None
     }
 }
 
@@ -164,8 +194,9 @@ fn add_event(event: EventPayload) -> Result<Event, Error> {
     if event.name.is_empty()
         || event.details.is_empty()
         || event.location.is_empty()
-        || event.start_date.is_empty()
+        || event.start_date.is_empty() // Assuming start_date is a String in the payload
         || event.end_date.is_empty()
+    // Assuming end_date is a String in the payload
     {
         return Err(Error::CustomError("All fields are required".to_string()));
     }
@@ -177,14 +208,22 @@ fn add_event(event: EventPayload) -> Result<Event, Error> {
         })
         .expect("cannot increment id counter");
 
+    let timestamp = time(); // Get the current timestamp
+
+    // Parse start_date and end_date strings into Date structs
+    let start_date = Date::from_string(&event.start_date)
+        .ok_or_else(|| Error::CustomError("Invalid start date format".to_string()))?;
+    let end_date = Date::from_string(&event.end_date)
+        .ok_or_else(|| Error::CustomError("Invalid end date format".to_string()))?;
+
     let event = Event {
         id,
         name: event.name,
         details: event.details,
         location: event.location,
-        start_date: event.start_date,
-        end_date: event.end_date,
-        timestamp: time(),
+        start_date,
+        end_date,
+        timestamp,
         attendees: Vec::new(),
     };
     do_insert_event(&event);
@@ -200,16 +239,25 @@ fn update_event(event_id: u64, payload: EventPayload) -> Result<Event, Error> {
         || payload.start_date.is_empty()
         || payload.end_date.is_empty()
     {
-        return Err(Error::CustomError("All fields in the payload are required".to_string()));
+        return Err(Error::CustomError(
+            "All fields in the payload are required".to_string(),
+        ));
     }
 
     match EVENTS_STORAGE.with(|service| service.borrow().get(&event_id)) {
         Some(mut event) => {
+            // Parse start_date and end_date strings into Date structs
+            let start_date = Date::from_string(&payload.start_date)
+                .ok_or_else(|| Error::CustomError("Invalid start date format".to_string()))?;
+            let end_date = Date::from_string(&payload.end_date)
+                .ok_or_else(|| Error::CustomError("Invalid end date format".to_string()))?;
+
             event.name = payload.name;
             event.details = payload.details;
             event.location = payload.location;
-            event.start_date = payload.start_date;
-            event.end_date = payload.end_date;
+            event.start_date = start_date; // Update start_date field with parsed Date
+            event.end_date = end_date; // Update end_date field with parsed Date
+
             do_insert_event(&event);
             Ok(event)
         }
@@ -282,8 +330,6 @@ fn get_event_by_name(name: String) -> Result<Option<Event>, Error> {
     }
 }
 
-
-
 #[ic_cdk::query]
 fn get_events() -> Result<Vec<Event>, Error> {
     let events = EVENTS_STORAGE.with(|service| {
@@ -303,7 +349,6 @@ fn get_events() -> Result<Vec<Event>, Error> {
     }
 }
 
-
 #[ic_cdk::query]
 fn get_upcoming_events() -> Result<Vec<Event>, Error> {
     let current_time = time();
@@ -315,9 +360,11 @@ fn get_upcoming_events() -> Result<Vec<Event>, Error> {
             .filter(|(_, event)| event.timestamp > current_time)
             .map(|(_, event)| event.clone())
             .collect();
-        
+
         if events.is_empty() {
-            Err(Error::CustomError("No upcoming events available".to_string()))
+            Err(Error::CustomError(
+                "No upcoming events available".to_string(),
+            ))
         } else {
             Ok(events)
         }
@@ -337,7 +384,7 @@ fn get_past_events() -> Result<Vec<Event>, Error> {
             .filter(|(_, event)| event.timestamp <= current_time)
             .map(|(_, event)| event.clone())
             .collect();
-        
+
         if events.is_empty() {
             Err(Error::CustomError("No past events available".to_string()))
         } else {
@@ -353,7 +400,9 @@ fn get_past_events() -> Result<Vec<Event>, Error> {
 fn add_attendees(event_id: u64, attendee_payload: AttendeePayload) -> Result<(), Error> {
     // Validate that the attendee name is not empty
     if attendee_payload.name.is_empty() {
-        return Err(Error::CustomError("Attendee name cannot be empty".to_string()));
+        return Err(Error::CustomError(
+            "Attendee name cannot be empty".to_string(),
+        ));
     }
 
     match EVENTS_STORAGE.with(|service| {
@@ -377,7 +426,6 @@ fn add_attendees(event_id: u64, attendee_payload: AttendeePayload) -> Result<(),
         Err(err) => Err(err),
     }
 }
-
 
 #[ic_cdk::query]
 fn get_attendees(event_id: u64) -> Result<Vec<Attendee>, Error> {
@@ -442,7 +490,7 @@ fn get_tickets(event_id: u64) -> Result<Vec<Ticket>, Error> {
             .filter(|(_, ticket)| ticket.event_id == event_id)
             .map(|(_, ticket)| ticket.clone())
             .collect();
-        
+
         if tickets.is_empty() {
             // If no tickets found for the specified event_id, return an error
             return Err(Error::NotFound {
@@ -453,7 +501,6 @@ fn get_tickets(event_id: u64) -> Result<Vec<Ticket>, Error> {
         Ok(tickets)
     })
 }
-
 
 #[ic_cdk::update]
 fn delete_ticket(ticket_id: u64) -> Result<Ticket, Error> {
@@ -486,10 +533,11 @@ fn get_available_tickets_count(event_id: u64, ticket_type: TicketType) -> usize 
 // Ticket Purchase
 #[ic_cdk::update]
 fn purchase_ticket(payload: TicketPurchasePayload) -> Result<(Vec<Ticket>, u64), Error> {
-        // Validate that all fields in the payload are filled
-        if payload.attendee_name.is_empty()
-    {
-        return Err(Error::CustomError("All fields in the payload are required".to_string()));
+    // Validate that all fields in the payload are filled
+    if payload.attendee_name.is_empty() {
+        return Err(Error::CustomError(
+            "All fields in the payload are required".to_string(),
+        ));
     }
 
     let event_id = payload.event_id;

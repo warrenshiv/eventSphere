@@ -1,5 +1,6 @@
 type Attendee = record { name : text };
 type AttendeePayload = record { name : text };
+type Date = record { day : nat32; month : nat32; year : nat32 };
 type Error = variant {
   NotFound : record { msg : text };
   AlreadyExists : record { msg : text };
@@ -8,8 +9,8 @@ type Error = variant {
 type Event = record {
   id : nat64;
   name : text;
-  end_date : text;
-  start_date : text;
+  end_date : Date;
+  start_date : Date;
   timestamp : nat64;
   attendees : vec Attendee;
   details : text;
