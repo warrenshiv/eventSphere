@@ -357,7 +357,7 @@ fn get_upcoming_events() -> Result<Vec<Event>, Error> {
         let borrowed_service = service.borrow();
         let events: Vec<Event> = borrowed_service
             .iter()
-            .filter(|(_, event)| event.timestamp > current_time)
+            .filter(|(_, event)| event.timestamp <= current_time)
             .map(|(_, event)| event.clone())
             .collect();
 
@@ -381,7 +381,7 @@ fn get_past_events() -> Result<Vec<Event>, Error> {
         let borrowed_service = service.borrow();
         let events: Vec<Event> = borrowed_service
             .iter()
-            .filter(|(_, event)| event.timestamp <= current_time)
+            .filter(|(_, event)| event.timestamp > current_time)
             .map(|(_, event)| event.clone())
             .collect();
 
