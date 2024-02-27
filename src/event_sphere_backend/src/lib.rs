@@ -413,6 +413,12 @@ fn add_event(event: EventPayload) -> Result<Event, Error> {
 
 #[ic_cdk::update]
 fn update_event(event_id: u64, payload: EventPayload) -> Result<Event, Error> {
+    // Clone the username before passing it to authenticate_user
+    let username = payload.username.clone();
+    let password = payload.password.clone();
+
+    let _user = authenticate_user(username, password)?;
+
     // Validate that all fields in the payload are filled
     if payload.name.is_empty()
         || payload.details.is_empty()
