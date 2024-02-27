@@ -67,6 +67,7 @@ service : {
   add_user : (UserPayload) -> (Result_2);
   delete_event : (opt nat64) -> (Result_1);
   delete_ticket : (nat64) -> (Result_3);
+  delete_user : (nat64) -> (Result_2);
   generate_tickets : (TicketPayload) -> (opt vec Ticket);
   get_attendees : (nat64) -> (Result_4) query;
   get_available_tickets_count : (nat64, TicketType) -> (nat64) query;
@@ -76,6 +77,8 @@ service : {
   get_past_events : () -> (Result_6) query;
   get_tickets : (nat64) -> (Result_7) query;
   get_upcoming_events : () -> (Result_6) query;
+  get_user : (nat64) -> (Result_2) query;
   purchase_ticket : (TicketPurchasePayload) -> (Result_8);
   update_event : (nat64, EventPayload) -> (Result_1);
+  update_user : (nat64, UserPayload) -> (Result_2);
 }

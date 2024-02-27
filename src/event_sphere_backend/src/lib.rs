@@ -258,6 +258,59 @@ fn add_user(payload: UserPayload) -> Result<User, Error> {
     Ok(user)
 }
 
+#[ic_cdk::query]
+fn get_user(user_id: u64) -> Result<User, Error> {
+    match USER_STORAGE.with(|storage| storage.borrow().get(&user_id)) {
+        Some(user) => Ok(user.clone()),
+        None => Err(Error::NotFound {
+            msg: format!("User with ID {} not found.", user_id),
+        }),
+    }
+}
+
+#[ic_cdk::update]
+fn update_user(user_id: u64, payload: UserPayload) -> Result<User, Error> {
+    // Validate user payload: all fields are required
+    if payload.name.is_empty() || payload.email.is_empty() || payload.password.is_empty() {
+        return Err(Error::CustomError("All fields are required".to_string()));
+    }
+
+    let updated_user = USER_STORAGE.with(|storage| {
+        let mut user_storage = storage.borrow_mut();
+        if let Some(user) = user_storage.get(&user_id) {
+            let updated_user = User {
+                id: user.id,
+                name: payload.name.clone(),
+                email: payload.email.clone(),
+                password: payload.password.clone(),
+                created_at: user.created_at,
+                updated_at: Some(time()),
+            };
+            user_storage.insert(user_id, updated_user.clone());
+            Some(updated_user)
+        } else {
+            None
+        }
+    });
+
+    match updated_user {
+        Some(user) => Ok(user),
+        None => Err(Error::NotFound {
+            msg: format!("User with ID {} not found.", user_id),
+        }),
+    }
+}
+
+#[ic_cdk::update]
+fn delete_user(user_id: u64) -> Result<User, Error> {
+    match USER_STORAGE.with(|storage| storage.borrow_mut().remove(&user_id)) {
+        Some(user) => Ok(user),
+        None => Err(Error::NotFound {
+            msg: format!("User with ID {} not found.", user_id),
+        }),
+    }
+}
+
 // helper method to perform insert for users.
 fn do_insert_user(user: User) {
     USER_STORAGE.with(|m| m.borrow_mut().insert(user.id, user));
