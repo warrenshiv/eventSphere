@@ -22,6 +22,16 @@ struct Event {
     attendees: Vec<Attendee>,
 }
 
+#[derive(candid::CandidType, Serialize, Deserialize, Default, Debug, Clone)]
+struct User {
+    id: u64,
+    name: String,
+    email: String,
+    password: String,
+    created_at: u64,
+    updated_at: Option<u64>,
+}
+
 // Define the Date struct
 #[derive(candid::CandidType, Clone, Serialize, Deserialize, Default)]
 struct Date {
@@ -101,6 +111,22 @@ impl BoundedStorable for Event {
     const IS_FIXED_SIZE: bool = false;
 }
 
+// Implement Storable and BoundedStorable  traits for User
+impl Storable for User {
+    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+        Cow::Owned(Encode!(self).unwrap())
+    }
+
+    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+        Decode!(bytes.as_ref(), Self).unwrap()
+    }
+}
+
+impl BoundedStorable for User {
+    const MAX_SIZE: u32 = 1024;
+    const IS_FIXED_SIZE: bool = false;
+}
+
 impl Storable for Attendee {
     fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
         Cow::Owned(Encode!(self).unwrap())
@@ -155,6 +181,16 @@ thread_local! {
         RefCell::new(StableBTreeMap::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(2)))
     ));
+
+    static USER_ID_COUNTER: RefCell<IdCell> = RefCell::new(
+        IdCell::init(MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(4))), 0)
+            .expect("Cannot create a counter")
+    );
+
+    static USER_STORAGE: RefCell<StableBTreeMap<u64, User, Memory>> =
+        RefCell::new(StableBTreeMap::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(5)))
+    ));
 }
 
 #[derive(candid::CandidType, Serialize, Deserialize, Default)]
@@ -185,6 +221,46 @@ struct TicketPurchasePayload {
     ticket_type: TicketType,
     attendee_name: String,
     num_tickets: u32,
+}
+
+#[derive(candid::CandidType, Serialize, Deserialize, Default)]
+struct UserPayload {
+    name: String,
+    email: String,
+    password: String,
+}
+
+#[ic_cdk::update]
+fn add_user(payload: UserPayload) -> Result<User, Error> {
+    // Validate user payload all fields are required
+    if payload.name.is_empty() || payload.email.is_empty() || payload.password.is_empty() {
+        return Err(Error::CustomError("All fields are required".to_string()));
+    }
+
+    let id = USER_ID_COUNTER
+        .with(|counter| {
+            let current_value = *counter.borrow().get();
+            counter.borrow_mut().set(current_value + 1)
+        })
+        .expect("cannot increment id counter");
+
+    let user = User {
+        id,
+        name: payload.name,
+        email: payload.email,
+        password: payload.password,
+        created_at: time(),
+        updated_at: None,
+    };
+
+    do_insert_user(user.clone());
+
+    Ok(user)
+}
+
+// helper method to perform insert for users.
+fn do_insert_user(user: User) {
+    USER_STORAGE.with(|m| m.borrow_mut().insert(user.id, user));
 }
 
 // Event Queries
