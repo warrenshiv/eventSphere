@@ -1,5 +1,5 @@
-type Attendee = record { name : text };
-type AttendeePayload = record { name : text };
+type Attendee = record { username : text };
+type AttendeePayload = record { username : text };
 type Date = record { day : nat32; month : nat32; year : nat32 };
 type Error = variant {
   NotFound : record { msg : text };
@@ -17,6 +17,8 @@ type Event = record {
   location : text;
 };
 type EventPayload = record {
+  username : text;
+  password : text;
   name : text;
   end_date : text;
   start_date : text;
@@ -46,24 +48,24 @@ type TicketPayload = record {
   event_id : nat64;
 };
 type TicketPurchasePayload = record {
-  attendee_name : text;
   num_tickets : nat32;
   ticket_type : TicketType;
   event_id : nat64;
+  attendee_username : text;
 };
 type TicketType = variant { VIP; VVIP; Regular; Discount };
 type User = record {
   id : nat64;
   updated_at : opt nat64;
+  username : text;
   password : text;
-  name : text;
   role : UserRole;
   created_at : nat64;
   email : text;
 };
 type UserPayload = record {
+  username : text;
   password : text;
-  name : text;
   role : UserRole;
   email : text;
 };

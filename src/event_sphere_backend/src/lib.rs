@@ -25,7 +25,7 @@ struct Event {
 #[derive(candid::CandidType, Serialize, Deserialize, Default, Debug, Clone)]
 struct User {
     id: u64,
-    name: String,
+    username: String,
     email: String,
     password: String,
     role: UserRole,
@@ -57,7 +57,6 @@ enum UserRole {
     Admin,
     User,
 }
-
 
 impl fmt::Display for TicketType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -94,7 +93,7 @@ impl Date {
 
 #[derive(candid::CandidType, Clone, Serialize, Deserialize, Default)]
 struct Attendee {
-    name: String,
+    username: String,
 }
 
 #[derive(candid::CandidType, Clone, Serialize, Deserialize, Default)]
@@ -208,13 +207,15 @@ struct EventPayload {
     name: String,
     details: String,
     location: String,
+    username: String,
+    password: String,
     start_date: String,
     end_date: String,
 }
 
 #[derive(candid::CandidType, Serialize, Deserialize, Default)]
 struct AttendeePayload {
-    name: String,
+    username: String,
 }
 
 #[derive(candid::CandidType, Serialize, Deserialize, Default)]
@@ -229,23 +230,22 @@ struct TicketPayload {
 struct TicketPurchasePayload {
     event_id: u64,
     ticket_type: TicketType,
-    attendee_name: String,
+    attendee_username: String,
     num_tickets: u32,
 }
 
 #[derive(candid::CandidType, Serialize, Deserialize, Default)]
 struct UserPayload {
-    name: String,
+    username: String,
     email: String,
     password: String,
     role: UserRole,
-
 }
 
 #[ic_cdk::update]
 fn register_user(payload: UserPayload) -> Result<User, Error> {
     // Validate user payload all fields are required
-    if payload.name.is_empty() || payload.email.is_empty() || payload.password.is_empty() {
+    if payload.username.is_empty() || payload.email.is_empty() || payload.password.is_empty() {
         return Err(Error::CustomError("All fields are required".to_string()));
     }
 
@@ -258,7 +258,7 @@ fn register_user(payload: UserPayload) -> Result<User, Error> {
 
     let user = User {
         id,
-        name: payload.name,
+        username: payload.username,
         email: payload.email,
         password: payload.password,
         role: payload.role,
@@ -284,7 +284,7 @@ fn get_user(user_id: u64) -> Result<User, Error> {
 #[ic_cdk::update]
 fn update_user(user_id: u64, payload: UserPayload) -> Result<User, Error> {
     // Validate user payload: all fields are required
-    if payload.name.is_empty() || payload.email.is_empty() || payload.password.is_empty() {
+    if payload.username.is_empty() || payload.email.is_empty() || payload.password.is_empty() {
         return Err(Error::CustomError("All fields are required".to_string()));
     }
 
@@ -293,7 +293,7 @@ fn update_user(user_id: u64, payload: UserPayload) -> Result<User, Error> {
         if let Some(user) = user_storage.get(&user_id) {
             let updated_user = User {
                 id: user.id,
-                name: payload.name.clone(),
+                username: payload.username.clone(),
                 email: payload.email.clone(),
                 password: payload.password.clone(),
                 role: payload.role,
@@ -331,13 +331,13 @@ fn do_insert_user(user: User) {
 }
 
 // Helper function to authenticate users
-fn authenticate_user(username: &str, password: &str) -> Result<User, Error> {
-    // Find the user by username (assuming username is unique)
+fn authenticate_user(username: String, password: String) -> Result<User, Error> {
+    // Find the user by userusername (assuming userusername is unique)
     let user = USER_STORAGE.with(|storage| {
         let borrowed_storage = storage.borrow();
         borrowed_storage
             .iter()
-            .find(|(_, user)| user.email == username)
+            .find(|(_, user)| user.username == username)
             .map(|(_, user)| user.clone())
     });
 
@@ -360,13 +360,17 @@ fn authenticate_user(username: &str, password: &str) -> Result<User, Error> {
 // Event Queries
 #[ic_cdk::update]
 fn add_event(event: EventPayload) -> Result<Event, Error> {
-    // Validate user payload: all fields are required
+    // Clone the username before passing it to authenticate_user
+    let username = event.username.clone();
+    let password = event.password.clone();
+    let _user = authenticate_user(username, password)?;
+
+    // Validate event payload: all fields are required
     if event.name.is_empty()
         || event.details.is_empty()
         || event.location.is_empty()
-        || event.start_date.is_empty() // Assuming start_date is a String in the payload
+        || event.start_date.is_empty()
         || event.end_date.is_empty()
-    // Assuming end_date is a String in the payload
     {
         return Err(Error::CustomError("All fields are required".to_string()));
     }
@@ -472,9 +476,11 @@ fn get_event(event_id: u64) -> Result<Event, Error> {
 
 #[ic_cdk::query]
 fn get_event_by_name(name: String) -> Result<Option<Event>, Error> {
-    // Validate that the event name is not empty
+    // Validate that the event username is not empty
     if name.is_empty() {
-        return Err(Error::CustomError("Event name cannot be empty".to_string()));
+        return Err(Error::CustomError(
+            "Event username cannot be empty".to_string(),
+        ));
     }
 
     let lowercase_name = name.to_lowercase();
@@ -490,12 +496,12 @@ fn get_event_by_name(name: String) -> Result<Option<Event>, Error> {
         }
     });
 
-    // Check if an event with the provided name was found
+    // Check if an event with the provided username was found
     if let Some(event) = found_event {
         Ok(Some(event))
     } else {
         Err(Error::NotFound {
-            msg: format!("Event with name '{}' not found", name),
+            msg: format!("Event with username '{}' not found", name),
         })
     }
 }
@@ -568,10 +574,10 @@ fn get_past_events() -> Result<Vec<Event>, Error> {
 // Attendee Queries
 #[ic_cdk::update]
 fn add_attendees(event_id: u64, attendee_payload: AttendeePayload) -> Result<(), Error> {
-    // Validate that the attendee name is not empty
-    if attendee_payload.name.is_empty() {
+    // Validate that the attendee username is not empty
+    if attendee_payload.username.is_empty() {
         return Err(Error::CustomError(
-            "Attendee name cannot be empty".to_string(),
+            "Attendee username cannot be empty".to_string(),
         ));
     }
 
@@ -580,7 +586,7 @@ fn add_attendees(event_id: u64, attendee_payload: AttendeePayload) -> Result<(),
         if let Some(event) = events_storage.get(&event_id) {
             // Use get to get a reference to the event
             let attendee = Attendee {
-                name: attendee_payload.name.clone(), // Cloning the name field
+                username: attendee_payload.username.clone(), // Cloning the username field
             };
             let mut cloned_event = event.clone(); // Cloning the event to modify it
             cloned_event.attendees.push(attendee); // Add the new attendee to the cloned event's attendees vector
@@ -704,7 +710,7 @@ fn get_available_tickets_count(event_id: u64, ticket_type: TicketType) -> usize 
 #[ic_cdk::update]
 fn purchase_ticket(payload: TicketPurchasePayload) -> Result<(Vec<Ticket>, u64), Error> {
     // Validate that all fields in the payload are filled
-    if payload.attendee_name.is_empty() {
+    if payload.attendee_username.is_empty() {
         return Err(Error::CustomError(
             "All fields in the payload are required".to_string(),
         ));
@@ -712,7 +718,7 @@ fn purchase_ticket(payload: TicketPurchasePayload) -> Result<(Vec<Ticket>, u64),
 
     let event_id = payload.event_id;
     let ticket_type = payload.ticket_type.clone();
-    let attendee_name = payload.attendee_name;
+    let attendee_username = payload.attendee_username;
     let num_tickets = payload.num_tickets as usize; // Convert num_tickets to usize
 
     // Check if the event exists
@@ -790,11 +796,11 @@ fn purchase_ticket(payload: TicketPurchasePayload) -> Result<(Vec<Ticket>, u64),
                 }
             }
 
-            // Update the event with the attendee's name
+            // Update the event with the attendee's username
             add_attendees(
                 event_id,
                 AttendeePayload {
-                    name: attendee_name,
+                    username: attendee_username,
                 },
             )
             .expect("Failed to add attendee");
