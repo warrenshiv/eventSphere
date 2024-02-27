@@ -330,6 +330,33 @@ fn do_insert_user(user: User) {
     USER_STORAGE.with(|m| m.borrow_mut().insert(user.id, user));
 }
 
+// Helper function to authenticate users
+fn authenticate_user(username: &str, password: &str) -> Result<User, Error> {
+    // Find the user by username (assuming username is unique)
+    let user = USER_STORAGE.with(|storage| {
+        let borrowed_storage = storage.borrow();
+        borrowed_storage
+            .iter()
+            .find(|(_, user)| user.email == username)
+            .map(|(_, user)| user.clone())
+    });
+
+    // Check if the user was found
+    match user {
+        Some(user) => {
+            // Check if the password matches
+            if user.password == password {
+                Ok(user) // Authentication successful
+            } else {
+                Err(Error::CustomError("Incorrect password".to_string())) // Incorrect password
+            }
+        }
+        None => Err(Error::NotFound {
+            msg: "User not found".to_string(),
+        }), // User not found
+    }
+}
+
 // Event Queries
 #[ic_cdk::update]
 fn add_event(event: EventPayload) -> Result<Event, Error> {
