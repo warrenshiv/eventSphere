@@ -1,5 +1,5 @@
-type Attendee = record { username : text };
-type AttendeePayload = record { username : text };
+type Attendee = record { attendee_name : text };
+type AttendeePayload = record { attendee_name : text };
 type Date = record { day : nat32; month : nat32; year : nat32 };
 type Error = variant {
   NotFound : record { msg : text };
@@ -8,32 +8,33 @@ type Error = variant {
 };
 type Event = record {
   id : nat64;
-  name : text;
   end_date : Date;
   start_date : Date;
   timestamp : nat64;
   attendees : vec Attendee;
   details : text;
+  event_name : text;
   location : text;
 };
 type EventPayload = record {
   username : text;
   password : text;
-  name : text;
   end_date : text;
   start_date : text;
   details : text;
+  event_name : text;
   location : text;
 };
 type Result = variant { Ok; Err : Error };
 type Result_1 = variant { Ok : Event; Err : Error };
 type Result_2 = variant { Ok : Ticket; Err : Error };
 type Result_3 = variant { Ok : User; Err : Error };
-type Result_4 = variant { Ok : vec Attendee; Err : Error };
-type Result_5 = variant { Ok : opt Event; Err : Error };
-type Result_6 = variant { Ok : vec Event; Err : Error };
-type Result_7 = variant { Ok : vec Ticket; Err : Error };
-type Result_8 = variant { Ok : record { vec Ticket; nat64 }; Err : Error };
+type Result_4 = variant { Ok : opt vec Ticket; Err : Error };
+type Result_5 = variant { Ok : vec Attendee; Err : Error };
+type Result_6 = variant { Ok : opt Event; Err : Error };
+type Result_7 = variant { Ok : vec Event; Err : Error };
+type Result_8 = variant { Ok : vec Ticket; Err : Error };
+type Result_9 = variant { Ok : record { vec Ticket; nat64 }; Err : Error };
 type Ticket = record {
   ticket_price : nat64;
   ticket_id : nat64;
@@ -48,10 +49,10 @@ type TicketPayload = record {
   event_id : nat64;
 };
 type TicketPurchasePayload = record {
+  attendee_name : text;
   num_tickets : nat32;
   ticket_type : TicketType;
   event_id : nat64;
-  attendee_username : text;
 };
 type TicketType = variant { VIP; VVIP; Regular; Discount };
 type User = record {
@@ -69,25 +70,26 @@ type UserPayload = record {
   role : UserRole;
   email : text;
 };
+type UserPayload1 = record { username : text; password : text };
 type UserRole = variant { User; Admin };
 service : {
-  add_attendees : (nat64, AttendeePayload) -> (Result);
+  add_attendees : (UserPayload1, nat64, AttendeePayload) -> (Result);
   add_event : (EventPayload) -> (Result_1);
-  delete_event : (opt nat64) -> (Result_1);
-  delete_ticket : (nat64) -> (Result_2);
-  delete_user : (nat64) -> (Result_3);
-  generate_tickets : (TicketPayload) -> (opt vec Ticket);
-  get_attendees : (nat64) -> (Result_4) query;
+  delete_event : (UserPayload1, opt nat64) -> (Result_1);
+  delete_ticket : (nat64, UserPayload1) -> (Result_2);
+  delete_user : (nat64, UserPayload1) -> (Result_3);
+  generate_tickets : (TicketPayload, UserPayload1) -> (Result_4);
+  get_attendees : (nat64) -> (Result_5) query;
   get_available_tickets_count : (nat64, TicketType) -> (nat64) query;
   get_event : (nat64) -> (Result_1) query;
-  get_event_by_name : (text) -> (Result_5) query;
-  get_events : () -> (Result_6) query;
-  get_past_events : () -> (Result_6) query;
-  get_tickets : (nat64) -> (Result_7) query;
-  get_upcoming_events : () -> (Result_6) query;
+  get_event_by_name : (text) -> (Result_6) query;
+  get_events : () -> (Result_7) query;
+  get_past_events : () -> (Result_7) query;
+  get_tickets : (nat64) -> (Result_8) query;
+  get_upcoming_events : () -> (Result_7) query;
   get_user : (nat64) -> (Result_3) query;
-  purchase_ticket : (TicketPurchasePayload) -> (Result_8);
+  purchase_ticket : (TicketPurchasePayload, UserPayload1) -> (Result_9);
   register_user : (UserPayload) -> (Result_3);
   update_event : (nat64, EventPayload) -> (Result_1);
-  update_user : (nat64, UserPayload) -> (Result_3);
+  update_user : (nat64, UserPayload, UserPayload1) -> (Result_3);
 }

@@ -13,7 +13,7 @@ type IdCell = Cell<u64, Memory>;
 #[derive(candid::CandidType, Clone, Serialize, Deserialize, Default)]
 struct Event {
     id: u64,
-    name: String,
+    event_name: String,
     details: String,
     location: String,
     start_date: Date,
@@ -93,7 +93,7 @@ impl Date {
 
 #[derive(candid::CandidType, Clone, Serialize, Deserialize, Default)]
 struct Attendee {
-    username: String,
+    attendee_name: String,
 }
 
 #[derive(candid::CandidType, Clone, Serialize, Deserialize, Default)]
@@ -204,7 +204,7 @@ thread_local! {
 
 #[derive(candid::CandidType, Serialize, Deserialize, Default)]
 struct EventPayload {
-    name: String,
+    event_name: String,
     details: String,
     location: String,
     username: String,
@@ -215,7 +215,7 @@ struct EventPayload {
 
 #[derive(candid::CandidType, Serialize, Deserialize, Default)]
 struct AttendeePayload {
-    username: String,
+    attendee_name: String,
 }
 
 #[derive(candid::CandidType, Serialize, Deserialize, Default)]
@@ -230,7 +230,7 @@ struct TicketPayload {
 struct TicketPurchasePayload {
     event_id: u64,
     ticket_type: TicketType,
-    attendee_username: String,
+    attendee_name: String,
     num_tickets: u32,
 }
 
@@ -240,6 +240,12 @@ struct UserPayload {
     email: String,
     password: String,
     role: UserRole,
+}
+
+#[derive(candid::CandidType, Serialize, Deserialize, Default)]
+struct UserPayload1 {
+    username: String,
+    password: String,
 }
 
 #[ic_cdk::update]
@@ -282,11 +288,17 @@ fn get_user(user_id: u64) -> Result<User, Error> {
 }
 
 #[ic_cdk::update]
-fn update_user(user_id: u64, payload: UserPayload) -> Result<User, Error> {
+fn update_user(user_id: u64, payload: UserPayload, payload2: UserPayload1) -> Result<User, Error> {
     // Validate user payload: all fields are required
     if payload.username.is_empty() || payload.email.is_empty() || payload.password.is_empty() {
         return Err(Error::CustomError("All fields are required".to_string()));
     }
+
+    // Clone the username before passing it to authenticate_admin
+    let username = payload2.username.clone();
+    let password = payload2.password.clone();
+
+    let _user = authenticate_user(username, password)?;
 
     let updated_user = USER_STORAGE.with(|storage| {
         let mut user_storage = storage.borrow_mut();
@@ -316,7 +328,12 @@ fn update_user(user_id: u64, payload: UserPayload) -> Result<User, Error> {
 }
 
 #[ic_cdk::update]
-fn delete_user(user_id: u64) -> Result<User, Error> {
+fn delete_user(user_id: u64, payload: UserPayload1) -> Result<User, Error> {
+    // Clone the username before passing it to authenticate_admin
+    let username = payload.username.clone();
+    let password = payload.password.clone();
+
+    let _user = authenticate_user(username, password)?;
     match USER_STORAGE.with(|storage| storage.borrow_mut().remove(&user_id)) {
         Some(user) => Ok(user),
         None => Err(Error::NotFound {
@@ -330,8 +347,8 @@ fn do_insert_user(user: User) {
     USER_STORAGE.with(|m| m.borrow_mut().insert(user.id, user));
 }
 
-// Helper function to authenticate users
-fn authenticate_user(username: String, password: String) -> Result<User, Error> {
+// Helper function to authenticate admin
+fn authenticate_admin(username: String, password: String) -> Result<User, Error> {
     // Find the user by username (assuming username is unique)
     let user = USER_STORAGE.with(|storage| {
         let borrowed_storage = storage.borrow();
@@ -363,17 +380,50 @@ fn authenticate_user(username: String, password: String) -> Result<User, Error> 
     }
 }
 
+// Helper function to authenticate users
+fn authenticate_user(username: String, password: String) -> Result<User, Error> {
+    // Find the user by username (assuming username is unique)
+    let user = USER_STORAGE.with(|storage| {
+        let borrowed_storage = storage.borrow();
+        borrowed_storage
+            .iter()
+            .find(|(_, user)| user.username == username)
+            .map(|(_, user)| user.clone())
+    });
+
+    // Check if the user was found
+    match user {
+        Some(user) => {
+            // Check if the password matches
+            if user.password == password {
+                // Check if the user's role is admin
+                if user.role == UserRole::User || user.role == UserRole::Admin {
+                    Ok(user) // Authentication successful
+                } else {
+                    Err(Error::CustomError("Insufficient privileges".to_string()))
+                    // User is not admin
+                }
+            } else {
+                Err(Error::CustomError("Incorrect password".to_string())) // Incorrect password
+            }
+        }
+        None => Err(Error::NotFound {
+            msg: "User not found".to_string(),
+        }), // User not found
+    }
+}
+
 // Event Queries
 #[ic_cdk::update]
 fn add_event(event: EventPayload) -> Result<Event, Error> {
-    // Clone the username before passing it to authenticate_user
+    // Clone the username before passing it to authenticate_admin
     let username = event.username.clone();
     let password = event.password.clone();
 
-    let _user = authenticate_user(username, password)?;
+    let _user = authenticate_admin(username, password)?;
 
     // Validate event payload: all fields are required
-    if event.name.is_empty()
+    if event.event_name.is_empty()
         || event.details.is_empty()
         || event.location.is_empty()
         || event.start_date.is_empty()
@@ -399,7 +449,7 @@ fn add_event(event: EventPayload) -> Result<Event, Error> {
 
     let event = Event {
         id,
-        name: event.name,
+        event_name: event.event_name,
         details: event.details,
         location: event.location,
         start_date,
@@ -413,14 +463,14 @@ fn add_event(event: EventPayload) -> Result<Event, Error> {
 
 #[ic_cdk::update]
 fn update_event(event_id: u64, payload: EventPayload) -> Result<Event, Error> {
-    // Clone the username before passing it to authenticate_user
+    // Clone the username before passing it to authenticate_admin
     let username = payload.username.clone();
     let password = payload.password.clone();
 
-    let _user = authenticate_user(username, password)?;
+    let _user = authenticate_admin(username, password)?;
 
     // Validate that all fields in the payload are filled
-    if payload.name.is_empty()
+    if payload.event_name.is_empty()
         || payload.details.is_empty()
         || payload.location.is_empty()
         || payload.start_date.is_empty()
@@ -439,7 +489,7 @@ fn update_event(event_id: u64, payload: EventPayload) -> Result<Event, Error> {
             let end_date = Date::from_string(&payload.end_date)
                 .ok_or_else(|| Error::CustomError("Invalid end date format".to_string()))?;
 
-            event.name = payload.name;
+            event.event_name = payload.event_name;
             event.details = payload.details;
             event.location = payload.location;
             event.start_date = start_date; // Update start_date field with parsed Date
@@ -458,7 +508,10 @@ fn update_event(event_id: u64, payload: EventPayload) -> Result<Event, Error> {
 }
 
 #[ic_cdk::update]
-fn delete_event(event_id: Option<u64>) -> Result<Event, Error> {
+fn delete_event(payload: UserPayload1, event_id: Option<u64>) -> Result<Event, Error> {
+    // Authenticate the user
+    let _user = authenticate_admin(payload.username.clone(), payload.password)?;
+
     // Validate that the event_id is provided
     let event_id = match event_id {
         Some(id) => id,
@@ -488,21 +541,21 @@ fn get_event(event_id: u64) -> Result<Event, Error> {
 }
 
 #[ic_cdk::query]
-fn get_event_by_name(name: String) -> Result<Option<Event>, Error> {
+fn get_event_by_name(event_name: String) -> Result<Option<Event>, Error> {
     // Validate that the event username is not empty
-    if name.is_empty() {
+    if event_name.is_empty() {
         return Err(Error::CustomError(
             "Event username cannot be empty".to_string(),
         ));
     }
 
-    let lowercase_name = name.to_lowercase();
+    let lowercase_name = event_name.to_lowercase();
     let mut found_event = None;
 
     EVENTS_STORAGE.with(|service| {
         let borrowed_service = service.borrow();
         for (_, event) in borrowed_service.iter() {
-            if event.name.to_lowercase() == lowercase_name {
+            if event.event_name.to_lowercase() == lowercase_name {
                 found_event = Some(event.clone());
                 break;
             }
@@ -514,7 +567,7 @@ fn get_event_by_name(name: String) -> Result<Option<Event>, Error> {
         Ok(Some(event))
     } else {
         Err(Error::NotFound {
-            msg: format!("Event with username '{}' not found", name),
+            msg: format!("Event with username '{}' not found", event_name),
         })
     }
 }
@@ -584,13 +637,22 @@ fn get_past_events() -> Result<Vec<Event>, Error> {
     past_events
 }
 
-// Attendee Queries
 #[ic_cdk::update]
-fn add_attendees(event_id: u64, attendee_payload: AttendeePayload) -> Result<(), Error> {
-    // Validate that the attendee username is not empty
-    if attendee_payload.username.is_empty() {
+fn add_attendees(
+    payload: UserPayload1,
+    event_id: u64,
+    attendee_payload: AttendeePayload,
+) -> Result<(), Error> {
+    // Authenticate the user
+    let _user = authenticate_user(payload.username.clone(), payload.password.clone())?;
+
+    // Validate that all fields in the payload are filled
+    if payload.username.is_empty()
+        || payload.password.is_empty()
+        || attendee_payload.attendee_name.is_empty()
+    {
         return Err(Error::CustomError(
-            "Attendee username cannot be empty".to_string(),
+            "All fields in the payload are required".to_string(),
         ));
     }
 
@@ -599,7 +661,7 @@ fn add_attendees(event_id: u64, attendee_payload: AttendeePayload) -> Result<(),
         if let Some(event) = events_storage.get(&event_id) {
             // Use get to get a reference to the event
             let attendee = Attendee {
-                username: attendee_payload.username.clone(), // Cloning the username field
+                attendee_name: attendee_payload.attendee_name.clone(), // Cloning the username field
             };
             let mut cloned_event = event.clone(); // Cloning the event to modify it
             cloned_event.attendees.push(attendee); // Add the new attendee to the cloned event's attendees vector
@@ -611,7 +673,10 @@ fn add_attendees(event_id: u64, attendee_payload: AttendeePayload) -> Result<(),
             })
         }
     }) {
-        Ok(()) => Ok(()),
+        Ok(()) => {
+            // Return a success message
+            Ok(println!("Attendee successfully added to the event!"))
+        }
         Err(err) => Err(err),
     }
 }
@@ -635,7 +700,16 @@ fn get_attendees(event_id: u64) -> Result<Vec<Attendee>, Error> {
 
 // Ticket Queries
 #[ic_cdk::update]
-fn generate_tickets(ticket_payload: TicketPayload) -> Option<Vec<Ticket>> {
+fn generate_tickets(
+    ticket_payload: TicketPayload,
+    payload: UserPayload1,
+) -> Result<Option<Vec<Ticket>>, Error> {
+    // Clone the username before passing it to authenticate_admin
+    let username = payload.username.clone();
+    let password = payload.password.clone();
+
+    let _user = authenticate_admin(username, password)?;
+
     let event_id = ticket_payload.event_id;
     let num_tickets = ticket_payload.num_tickets;
 
@@ -664,9 +738,9 @@ fn generate_tickets(ticket_payload: TicketPayload) -> Option<Vec<Ticket>> {
                 do_insert_ticket(&new_ticket);
                 tickets.push(new_ticket);
             }
-            Some(tickets)
+            Ok(Some(tickets))
         }
-        None => None,
+        None => Ok(None),
     }
 }
 
@@ -692,7 +766,13 @@ fn get_tickets(event_id: u64) -> Result<Vec<Ticket>, Error> {
 }
 
 #[ic_cdk::update]
-fn delete_ticket(ticket_id: u64) -> Result<Ticket, Error> {
+fn delete_ticket(ticket_id: u64, payload: UserPayload1) -> Result<Ticket, Error> {
+    // Clone the username before passing it to authenticate_admin
+    let username = payload.username.clone();
+    let password = payload.password.clone();
+
+    let _user = authenticate_admin(username, password)?;
+
     match TICKETS_STORAGE.with(|service| service.borrow_mut().remove(&ticket_id)) {
         Some(ticket) => Ok(ticket),
         None => Err(Error::NotFound {
@@ -721,9 +801,12 @@ fn get_available_tickets_count(event_id: u64, ticket_type: TicketType) -> usize 
 
 // Ticket Purchase
 #[ic_cdk::update]
-fn purchase_ticket(payload: TicketPurchasePayload) -> Result<(Vec<Ticket>, u64), Error> {
+fn purchase_ticket(
+    payload: TicketPurchasePayload,
+    payload1: UserPayload1,
+) -> Result<(Vec<Ticket>, u64), Error> {
     // Validate that all fields in the payload are filled
-    if payload.attendee_username.is_empty() {
+    if payload.attendee_name.is_empty() {
         return Err(Error::CustomError(
             "All fields in the payload are required".to_string(),
         ));
@@ -731,7 +814,7 @@ fn purchase_ticket(payload: TicketPurchasePayload) -> Result<(Vec<Ticket>, u64),
 
     let event_id = payload.event_id;
     let ticket_type = payload.ticket_type.clone();
-    let attendee_username = payload.attendee_username;
+    let attendee_name = payload.attendee_name;
     let num_tickets = payload.num_tickets as usize; // Convert num_tickets to usize
 
     // Check if the event exists
@@ -809,11 +892,15 @@ fn purchase_ticket(payload: TicketPurchasePayload) -> Result<(Vec<Ticket>, u64),
                 }
             }
 
-            // Update the event with the attendee's username
+            // Update the event with the attendee's name
             add_attendees(
+                UserPayload1 {
+                    username: payload1.username,
+                    password: payload1.password,
+                },
                 event_id,
                 AttendeePayload {
-                    username: attendee_username,
+                    attendee_name: attendee_name,
                 },
             )
             .expect("Failed to add attendee");
