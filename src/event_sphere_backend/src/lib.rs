@@ -28,6 +28,7 @@ struct User {
     name: String,
     email: String,
     password: String,
+    role: UserRole,
     created_at: u64,
     updated_at: Option<u64>,
 }
@@ -48,6 +49,15 @@ enum TicketType {
     VIP,
     Discount,
 }
+
+#[derive(candid::CandidType, Serialize, Deserialize, Default, Debug, Clone)]
+
+enum UserRole {
+    #[default]
+    Admin,
+    User,
+}
+
 
 impl fmt::Display for TicketType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -228,10 +238,12 @@ struct UserPayload {
     name: String,
     email: String,
     password: String,
+    role: UserRole,
+
 }
 
 #[ic_cdk::update]
-fn add_user(payload: UserPayload) -> Result<User, Error> {
+fn register_user(payload: UserPayload) -> Result<User, Error> {
     // Validate user payload all fields are required
     if payload.name.is_empty() || payload.email.is_empty() || payload.password.is_empty() {
         return Err(Error::CustomError("All fields are required".to_string()));
@@ -249,6 +261,7 @@ fn add_user(payload: UserPayload) -> Result<User, Error> {
         name: payload.name,
         email: payload.email,
         password: payload.password,
+        role: payload.role,
         created_at: time(),
         updated_at: None,
     };
@@ -283,6 +296,7 @@ fn update_user(user_id: u64, payload: UserPayload) -> Result<User, Error> {
                 name: payload.name.clone(),
                 email: payload.email.clone(),
                 password: payload.password.clone(),
+                role: payload.role,
                 created_at: user.created_at,
                 updated_at: Some(time()),
             };
