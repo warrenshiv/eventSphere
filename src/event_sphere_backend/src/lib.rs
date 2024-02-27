@@ -41,7 +41,7 @@ struct Date {
     day: u32,
 }
 
-#[derive(candid::CandidType, Serialize, Deserialize, Default, Debug, Clone)]
+#[derive(candid::CandidType, Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 enum TicketType {
     #[default]
     Regular,
@@ -50,7 +50,7 @@ enum TicketType {
     Discount,
 }
 
-#[derive(candid::CandidType, Serialize, Deserialize, Default, Debug, Clone)]
+#[derive(candid::CandidType, Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 
 enum UserRole {
     #[default]
@@ -332,7 +332,7 @@ fn do_insert_user(user: User) {
 
 // Helper function to authenticate users
 fn authenticate_user(username: String, password: String) -> Result<User, Error> {
-    // Find the user by userusername (assuming userusername is unique)
+    // Find the user by username (assuming username is unique)
     let user = USER_STORAGE.with(|storage| {
         let borrowed_storage = storage.borrow();
         borrowed_storage
@@ -346,7 +346,13 @@ fn authenticate_user(username: String, password: String) -> Result<User, Error> 
         Some(user) => {
             // Check if the password matches
             if user.password == password {
-                Ok(user) // Authentication successful
+                // Check if the user's role is admin
+                if user.role == UserRole::Admin {
+                    Ok(user) // Authentication successful
+                } else {
+                    Err(Error::CustomError("Insufficient privileges".to_string()))
+                    // User is not admin
+                }
             } else {
                 Err(Error::CustomError("Incorrect password".to_string())) // Incorrect password
             }
@@ -363,6 +369,7 @@ fn add_event(event: EventPayload) -> Result<Event, Error> {
     // Clone the username before passing it to authenticate_user
     let username = event.username.clone();
     let password = event.password.clone();
+
     let _user = authenticate_user(username, password)?;
 
     // Validate event payload: all fields are required
