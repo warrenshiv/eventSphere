@@ -370,7 +370,7 @@ fn authenticate_admin(username: String, password: String) -> Result<User, Error>
 
     // Check if the user was found
     match user {
-        Some(mut user) => {
+        Some(user) => {
             // Hash the provided password
             let hashed_password = hash_password(&password)?;
 
@@ -405,7 +405,7 @@ fn authenticate_user(username: String, password: String) -> Result<User, Error> 
 
     // Check if the user was found
     match user {
-        Some(mut user) => {
+        Some(user) => {
             // Hash the provided password
             let hashed_password = hash_password(&password)?;
 
