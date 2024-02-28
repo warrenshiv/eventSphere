@@ -1,6 +1,6 @@
-# event_sphere
+# Event Management System 📅👥🎟️
 
-Welcome to your new event_sphere project and to the internet computer development community. By default, creating a new project adds this README and some template files to your project directory. You can edit these template files to customize your project and to include your own code to speed up the development cycle.
+This is a Rust application for managing events, users, and tickets. It provides functionality to register users, add, update, delete events, manage attendees, generate tickets, and purchase tickets.
 
 To get started, you might want to explore the project directory structure and the default configuration file. Working with this project in your development environment will not affect any production deployment or identity tokens.
 
@@ -50,6 +50,107 @@ npm start
 ```
 
 Which will start a server at `http://localhost:8080`, proxying API requests to the replica at port 4943.
+
+## Table of Contents
+- [Dependencies](#dependencies)
+- [Usage](#usage)
+  - [Register User](#register-user)
+  - [Get User](#get-user)
+  - [Update User](#update-user)
+  - [Delete User](#delete-user)
+  - [Add Event](#add-event)
+  - [Update Event](#update-event)
+  - [Delete Event](#delete-event)
+  - [Get Event](#get-event)
+  - [Get Event By Name](#get-event-by-name)
+  - [Get Events](#get-events)
+  - [Get Upcoming Events](#get-upcoming-events)
+  - [Get Past Events](#get-past-events)
+  - [Add Attendees](#add-attendees)
+  - [Get Attendees](#get-attendees)
+  - [Generate Tickets](#generate-tickets)
+  - [Get Tickets](#get-tickets)
+  - [Delete Ticket](#delete-ticket)
+  - [Get Available Tickets Count](#get-available-tickets-count)
+  - [Purchase Ticket](#purchase-ticket)
+- [Error Handling](#error-handling)
+- [Candid Interface](#candid-interface)
+
+## Dependencies
+- `serde` for serialization and deserialization.
+- `candid` for Candid serialization.
+- `ic_cdk` for interacting with the Internet Computer.
+- `ic_stable_structures` for stable storage of data.
+- `sha2` for hashing passwords.
+
+## Usage
+
+### Register User 📝
+Register a new user with the provided username, email, password, and role.
+
+### Get User 🔍
+Retrieve user details by user ID.
+
+### Update User 🔄
+Update user details by user ID.
+
+### Delete User 🗑️
+Delete user by user ID.
+
+### Add Event 🎉
+Add a new event with details like event name, details, location, start date, and end date.
+
+### Update Event 📅
+Update event details by event ID.
+
+### Delete Event 🗑️
+Delete event by event ID.
+
+### Get Event 📅
+Retrieve event details by event ID.
+
+### Get Event By Name 📅
+Retrieve event details by event name.
+
+### Get Events 📅
+Retrieve details of all events.
+
+### Get Upcoming Events 📅
+Retrieve details of upcoming events.
+
+### Get Past Events 📅
+Retrieve details of past events.
+
+### Add Attendees 👥
+Add attendees to an event.
+
+### Get Attendees 👥
+Retrieve list of attendees for an event.
+
+### Generate Tickets 🎟️
+Generate tickets for an event.
+
+### Get Tickets 🎟️
+Retrieve tickets for an event.
+
+### Delete Ticket 🗑️
+Delete ticket by ticket ID.
+
+### Get Available Tickets Count 🎟️
+Retrieve the number of available tickets for a specific event and ticket type.
+
+### Purchase Ticket 💳
+Purchase tickets for an event.
+
+## Error Handling ❌
+Errors are handled with specific error types:
+- `NotFound`: Indicates that the requested resource was not found.
+- `AlreadyExists`: Indicates that the resource being added already exists.
+- `CustomError`: Indicates custom error messages.
+
+## Candid Interface 🌐
+This application exposes a Candid interface for interacting with the Internet Computer.
+
 
 ### Note on frontend environment variables
 
