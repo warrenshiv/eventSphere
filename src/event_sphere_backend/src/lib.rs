@@ -560,7 +560,7 @@ fn get_event_by_name(event_name: String) -> Result<Option<Event>, Error> {
     // Validate that the event username is not empty
     if event_name.is_empty() {
         return Err(Error::CustomError(
-            "Event username cannot be empty".to_string(),
+            "Event name cannot be empty".to_string(),
         ));
     }
 
@@ -582,7 +582,7 @@ fn get_event_by_name(event_name: String) -> Result<Option<Event>, Error> {
         Ok(Some(event))
     } else {
         Err(Error::NotFound {
-            msg: format!("Event with username '{}' not found", event_name),
+            msg: format!("Event with name '{}' not found", event_name),
         })
     }
 }
