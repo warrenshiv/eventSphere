@@ -1,6 +1,14 @@
-# Event Management System 📅👥🎟️
+# Event Management System on the Internet Computer 🌐
 
-This is a Rust application for managing events, users, and tickets. It provides functionality to register users 📝, add 🎉, update 🔄, delete 🗑️ events, manage attendees 👥, generate tickets 🎟️, and purchase tickets 💳.
+The Event Management System is a decentralized application (dApp) deployed on the Internet Computer (IC), designed to facilitate the creation, management, and participation in events. It showcases the IC's capabilities for scalability, security, and persistence. This documentation provides a detailed overview of the system's architecture, functionalities, and core components.
+
+## Core Dependencies 🛠️
+
+- **Serde**: Used for serialization and deserialization of Rust data structures, facilitating efficient data storage and communication.
+- **Candid**: A language for specifying interfaces on the IC, enabling seamless interaction between canisters and users or external systems.
+- **IC CDK (Canister Development Kit)**: Provides tools and libraries for canister development, including stable storage access and inter-canister communication.
+- **SHA-2**: Employs SHA-256 for hashing, enhancing security for sensitive information like user passwords.
+- **Stable Storage Structures**: Custom data structures optimized for the IC's stable storage, ensuring data persistence across canister upgrades.
 
 To get started, you might want to explore the project directory structure and the default configuration file. Working with this project in your development environment will not affect any production deployment or identity tokens.
 
@@ -13,13 +21,6 @@ To learn more before you start working with event_sphere, see the following docu
 - [ic-cdk-macros](https://docs.rs/ic-cdk-macros)
 - [Candid Introduction](https://internetcomputer.org/docs/current/developer-docs/backend/candid/)
 
-## Dependencies
-- `serde` for serialization and deserialization.
-- `candid` for Candid serialization.
-- `ic_cdk` for interacting with the Internet Computer.
-- `ic_stable_structures` for stable storage of data.
-- `sha2` for hashing passwords.
-
 If you want to start working on your project right away, you might want to try the following commands:
 
 ```bash
@@ -27,6 +28,22 @@ cd event_sphere/
 dfx help
 dfx canister --help
 ```
+## Data Structures 📚
+
+### Event
+The core entity containing details such as event name, location, dates, and attendee information.
+
+### User
+Manages user-specific data, including credentials and roles, essential for authentication and authorization.
+
+### Date
+A simple structure for representing dates, facilitating event scheduling.
+
+### TicketType & UserRole
+Enums defining available ticket types and user roles, streamlining data validation and role-based access control.
+
+### Attendee & Ticket
+Structures for managing event participation and ticket transactions, integral to the event lifecycle.
 
 ## Running the project locally
 
@@ -58,70 +75,41 @@ npm start
 
 Which will start a server at `http://localhost:8080`, proxying API requests to the replica at port 4943.
 
-## Usage
+## Functionalities 🌟
 
-### Register User 📝
-Register a new user with the provided username, email, password, and role.
+### User Management 👤
 
-### Get User 🔍
-Retrieve user details by user ID.
+- **register_user**: Registers a new user, hashing the password for security.
+- **get_user**: Retrieves a user's details by their unique ID.
+- **update_user**: Allows users to update their profile information upon authentication.
+- **delete_user**: Removes a user's profile and associated data, contingent on successful authentication.
 
-### Update User 🔄
-Update user details by user ID.
+### Event Management 📅
 
-### Delete User 🗑️
-Delete user by user ID.
+- **add_event**: Enables authorized users to create new events with comprehensive details.
+- **update_event**: Allows for modifications to event details post-creation.
+- **delete_event**: Supports the removal of events from the system.
+- **get_event / get_event_by_name**: Facilitates access to event details by ID or name.
 
-### Add Event 🎉
-Add a new event with details like event name, details, location, start date, and end date.
+### Ticket Management 🎫
 
-### Update Event 📅
-Update event details by event ID.
+- **generate_tickets**: Manages the creation and allocation of tickets for events.
+- **purchase_ticket**: Handles the purchase process, including ticket allocation and attendee registration.
+- **delete_ticket**: Enables the cancellation of tickets and adjusts event capacities.
+- **get_tickets**: Provides an overview of tickets for an event.
 
-### Delete Event 🗑️
-Delete event by event ID.
 
-### Get Event 📅
-Retrieve event details by event ID.
+## Advanced Features and Error Handling 🔧
 
-### Get Event By Name 📅
-Retrieve event details by event name.
+The system incorporates a custom `Error` enum for robust error handling, enhancing user experience by addressing potential issues proactively.
 
-### Get Events 📅
-Retrieve details of all events.
+## Candid Interface 📡
 
-### Get Upcoming Events 📅
-Retrieve details of upcoming events.
+Defines the publicly accessible functions of the canister, enabling interaction with external clients or other canisters on the IC network. This interface is crucial for the dApp's integration within the broader IC ecosystem.
 
-### Get Past Events 📅
-Retrieve details of past events.
+## Conclusion 🏁
 
-### Add Attendees 👥
-Add attendees to an event.
-
-### Get Attendees 👥
-Retrieve list of attendees for an event.
-
-### Generate Tickets 🎟️
-Generate tickets for an event.
-
-### Get Tickets 🎟️
-Retrieve tickets for an event.
-
-### Delete Ticket 🗑️
-Delete ticket by ticket ID.
-
-### Get Available Tickets Count 🎟️
-Retrieve the number of available tickets for a specific event and ticket type.
-
-### Purchase Ticket 💳
-Purchase tickets for an event.
-
-## Error Handling ❌
-Errors are handled with specific error types:
-- `NotFound`: Indicates that the requested resource was not found.
-- `AlreadyExists`: Indicates that the resource being added already exists.
-- `CustomError`: Indicates custom error messages.
+The Event Management System exemplifies the potential of decentralized applications on the Internet Computer, leveraging the platform's unique features to create a secure, scalable, and user-friendly solution for event management.
 
 ### Note on frontend environment variables
 
@@ -131,6 +119,3 @@ If you are hosting frontend code somewhere without using DFX, you may need to ma
 - use your own preferred method to replace `process.env.DFX_NETWORK` in the autogenerated declarations
   - Setting `canisters -> {asset_canister_id} -> declarations -> env_override to a string` in `dfx.json` will replace `process.env.DFX_NETWORK` with the string in the autogenerated declarations
 - Write your own `createActor` constructor
-
-## Candid Interface 🌐
-This application exposes a Candid interface for interacting with the Internet Computer.
