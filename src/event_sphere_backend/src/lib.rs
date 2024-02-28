@@ -4,6 +4,7 @@ use candid::{Decode, Encode};
 use ic_cdk::api::time;
 use ic_stable_structures::memory_manager::{MemoryId, MemoryManager, VirtualMemory};
 use ic_stable_structures::{BoundedStorable, Cell, DefaultMemoryImpl, StableBTreeMap, Storable};
+use sha2::{Digest, Sha256};
 use std::fmt;
 use std::{borrow::Cow, cell::RefCell};
 
@@ -255,6 +256,9 @@ fn register_user(payload: UserPayload) -> Result<User, Error> {
         return Err(Error::CustomError("All fields are required".to_string()));
     }
 
+    // Hash the password
+    let password = hash_password(&payload.password)?;
+
     let id = USER_ID_COUNTER
         .with(|counter| {
             let current_value = *counter.borrow().get();
@@ -266,7 +270,7 @@ fn register_user(payload: UserPayload) -> Result<User, Error> {
         id,
         username: payload.username,
         email: payload.email,
-        password: payload.password,
+        password,
         role: payload.role,
         created_at: time(),
         updated_at: None,
@@ -275,6 +279,13 @@ fn register_user(payload: UserPayload) -> Result<User, Error> {
     do_insert_user(user.clone());
 
     Ok(user)
+}
+
+// Helper function to hash passwords using SHA-256
+fn hash_password(password: &str) -> Result<String, Error> {
+    let mut hasher = Sha256::new();
+    hasher.update(password);
+    Ok(hex::encode(hasher.finalize()))
 }
 
 #[ic_cdk::query]
@@ -347,7 +358,6 @@ fn do_insert_user(user: User) {
     USER_STORAGE.with(|m| m.borrow_mut().insert(user.id, user));
 }
 
-// Helper function to authenticate admin
 fn authenticate_admin(username: String, password: String) -> Result<User, Error> {
     // Find the user by username (assuming username is unique)
     let user = USER_STORAGE.with(|storage| {
@@ -360,9 +370,12 @@ fn authenticate_admin(username: String, password: String) -> Result<User, Error>
 
     // Check if the user was found
     match user {
-        Some(user) => {
-            // Check if the password matches
-            if user.password == password {
+        Some(mut user) => {
+            // Hash the provided password
+            let hashed_password = hash_password(&password)?;
+
+            // Check if the hashed password matches
+            if user.password == hashed_password {
                 // Check if the user's role is admin
                 if user.role == UserRole::Admin {
                     Ok(user) // Authentication successful
@@ -380,7 +393,6 @@ fn authenticate_admin(username: String, password: String) -> Result<User, Error>
     }
 }
 
-// Helper function to authenticate users
 fn authenticate_user(username: String, password: String) -> Result<User, Error> {
     // Find the user by username (assuming username is unique)
     let user = USER_STORAGE.with(|storage| {
@@ -393,15 +405,18 @@ fn authenticate_user(username: String, password: String) -> Result<User, Error> 
 
     // Check if the user was found
     match user {
-        Some(user) => {
-            // Check if the password matches
-            if user.password == password {
-                // Check if the user's role is admin
+        Some(mut user) => {
+            // Hash the provided password
+            let hashed_password = hash_password(&password)?;
+
+            // Check if the hashed password matches
+            if user.password == hashed_password {
+                // Check if the user's role is User or Admin
                 if user.role == UserRole::User || user.role == UserRole::Admin {
                     Ok(user) // Authentication successful
                 } else {
                     Err(Error::CustomError("Insufficient privileges".to_string()))
-                    // User is not admin
+                    // User does not have sufficient privileges
                 }
             } else {
                 Err(Error::CustomError("Incorrect password".to_string())) // Incorrect password
